@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 11 13 16;
+  --surface: 21 24 28;
+  --surface-2: 27 31 36;
+  --border: 37 42 48;
+  --text: 237 238 240;
+  --text-muted: 134 141 150;
+  --accent: 94 168 160;
+  --gold: 212 168 87;
+  --danger: 197 123 107;
+}
+
+.light {
+  --bg: 246 245 241;
+  --surface: 255 255 255;
+  --surface-2: 239 237 231;
+  --border: 226 223 214;
+  --text: 28 30 29;
+  --text-muted: 117 121 122;
+  --accent: 63 133 125;
+  --gold: 185 138 62;
+  --danger: 177 93 76;
+}
+
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
+}
