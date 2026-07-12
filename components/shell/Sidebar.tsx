@@ -13,7 +13,7 @@ const NAV = [
   { icon: LayoutGrid, label: "Dashboard", href: "/" },
   { icon: FolderKanban, label: "Projects", href: "/projects" },
   { icon: CheckSquare, label: "Tasks", href: "/tasks" },
-  { icon: Calendar, label: "Calendar", href: null },
+  { icon: Calendar, label: "Calendar", href: "/calendar" },
   { icon: StickyNote, label: "Notes", href: null },
   { icon: BookOpen, label: "Journal", href: null },
   { icon: Flame, label: "Habits", href: null },
