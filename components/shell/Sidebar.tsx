@@ -16,7 +16,7 @@ const NAV = [
   { icon: Calendar, label: "Calendar", href: "/calendar" },
   { icon: StickyNote, label: "Notes", href: "/notes" },
   { icon: BookOpen, label: "Journal", href: "/journal" },
-  { icon: Flame, label: "Habits", href: null },
+  { icon: Flame, label: "Habits", href: "/habits" },
   { icon: Wallet, label: "Finance", href: null },
   { icon: ImageIcon, label: "Media Vault", href: null },
   { icon: GraduationCap, label: "Learning", href: null },
