@@ -360,6 +360,7 @@ export default function TasksPage() {
       {/* Edit drawer */}
       {editingTask && (
         <div
+          key={editingTask.id}
           style={{
             position: "fixed", top: 0, right: 0, height: "100%", width: 340,
             background: "rgb(var(--surface))", borderLeft: "1px solid rgb(var(--border))",

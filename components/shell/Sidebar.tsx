@@ -11,7 +11,7 @@ import {
 
 const NAV = [
   { icon: LayoutGrid, label: "Dashboard", href: "/" },
-  { icon: FolderKanban, label: "Projects", href: null },
+  { icon: FolderKanban, label: "Projects", href: "/projects" },
   { icon: CheckSquare, label: "Tasks", href: "/tasks" },
   { icon: Calendar, label: "Calendar", href: null },
   { icon: StickyNote, label: "Notes", href: null },
