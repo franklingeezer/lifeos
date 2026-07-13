@@ -9,14 +9,7 @@ Personal operating system. Single-user, no auth yet.
    npm install
    ```
 
-2. `.env.local` is already filled in with your Supabase project:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=https://pidrcwjpcnxsiuvjszdt.supabase.co
-   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_7QU2KulbpzcnuX6DM4EX1A_6vOShc0_
-   ```
-   `.env.local` is gitignored — never commit it.
-
-3. Run the schema:
+2. Run the schema:
    - Open your Supabase project → **SQL Editor** → **New query**.
    - Paste the contents of `supabase/schema.sql` and run it.
    - This creates `tasks`, `habits`, `habit_logs`, `projects`, `notes`, `finance_transactions`, and seeds a few starter tasks.
