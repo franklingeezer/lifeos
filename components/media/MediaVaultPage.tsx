@@ -55,6 +55,8 @@ export default function MediaVaultPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<MediaItem | null>(null);
   const [pendingTags, setPendingTags] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,16 +136,55 @@ export default function MediaVaultPage() {
     load();
   };
 
+  const requestDelete = (item: MediaItem) => {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      return;
+    }
+    deleteItem(item);
+  };
+
   const deleteItem = async (item: MediaItem) => {
     await supabase.storage.from(BUCKET).remove([item.storage_path]);
     await supabase.from("media_items").delete().eq("id", item.id);
     setItems((prev) => prev.filter((i) => i.id !== item.id));
+    setConfirmingDelete(false);
     if (selected?.id === item.id) setSelected(null);
   };
 
   const updateCaption = async (item: MediaItem, caption: string) => {
     setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, caption } : i)));
     await supabase.from("media_items").update({ caption: caption || null }).eq("id", item.id);
+  };
+
+  const renameFile = async (item: MediaItem, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === item.file_name) return;
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, file_name: trimmed } : i)));
+    setSelected((prev) => (prev && prev.id === item.id ? { ...prev, file_name: trimmed } : prev));
+    await supabase.from("media_items").update({ file_name: trimmed }).eq("id", item.id);
+  };
+
+  const downloadFile = async (item: MediaItem) => {
+    if (!item.url) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(item.url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = item.file_name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Download failed:", err);
+      alert("Download failed — the signed URL may have expired. Try reopening the file.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const FILTERS: { key: "all" | FileKind; label: string }[] = [
@@ -244,7 +285,7 @@ export default function MediaVaultPage() {
                 <div
                   key={item.id}
                   className="media-card"
-                  onClick={() => setSelected(item)}
+                  onClick={() => { setSelected(item); setConfirmingDelete(false); }}
                   style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 12, overflow: "hidden", cursor: "pointer" }}
                 >
                   <div style={{ aspectRatio: "1 / 1", background: "rgb(var(--surface-2))", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
@@ -271,11 +312,20 @@ export default function MediaVaultPage() {
 
       {/* Lightbox */}
       {selected && (
-        <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}>
+        <div onClick={() => { setSelected(null); setConfirmingDelete(false); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 20, width: 480, maxHeight: "85vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selected.file_name}</span>
-              <X size={16} style={{ cursor: "pointer", color: "rgb(var(--text-muted))", flexShrink: 0, marginLeft: 10 }} onClick={() => setSelected(null)} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
+              <input
+                key={selected.id}
+                defaultValue={selected.file_name}
+                onBlur={(e) => renameFile(selected, e.target.value)}
+                style={{
+                  flex: 1, fontSize: 14, fontWeight: 600, background: "transparent", border: "none", outline: "none",
+                  color: "rgb(var(--text))", padding: "4px 6px", borderRadius: 6, minWidth: 0,
+                }}
+                onFocus={(e) => (e.target.style.background = "rgb(var(--surface-2))")}
+              />
+              <X size={16} style={{ cursor: "pointer", color: "rgb(var(--text-muted))", flexShrink: 0 }} onClick={() => { setSelected(null); setConfirmingDelete(false); }} />
             </div>
 
             <div style={{ background: "rgb(var(--surface-2))", borderRadius: 10, overflow: "hidden", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
@@ -320,21 +370,31 @@ export default function MediaVaultPage() {
 
             <div style={{ display: "flex", gap: 10 }}>
               {selected.url && (
-                <a
-                  href={selected.url}
-                  download={selected.file_name}
-                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, background: "rgb(var(--surface-2))", color: "rgb(var(--text))", fontWeight: 600, fontSize: 13, textDecoration: "none" }}
+                <button
+                  onClick={() => downloadFile(selected)}
+                  disabled={downloading}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, background: "rgb(var(--surface-2))", color: "rgb(var(--text))", fontWeight: 600, fontSize: 13, border: "none", cursor: downloading ? "default" : "pointer", opacity: downloading ? 0.6 : 1 }}
                 >
-                  <Download size={14} /> Download
-                </a>
+                  <Download size={14} /> {downloading ? "Downloading…" : "Download"}
+                </button>
               )}
               <button
-                onClick={() => deleteItem(selected)}
-                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, background: "rgb(var(--danger) / 0.12)", color: "rgb(var(--danger))", fontWeight: 600, fontSize: 13, border: "1px solid rgb(var(--danger) / 0.3)", cursor: "pointer" }}
+                onClick={() => requestDelete(selected)}
+                style={{
+                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10,
+                  background: confirmingDelete ? "rgb(var(--danger))" : "rgb(var(--danger) / 0.12)",
+                  color: confirmingDelete ? "rgb(var(--bg))" : "rgb(var(--danger))",
+                  fontWeight: 600, fontSize: 13, border: "1px solid rgb(var(--danger) / 0.3)", cursor: "pointer",
+                }}
               >
-                <Trash2 size={14} /> Delete
+                <Trash2 size={14} /> {confirmingDelete ? "Click again to confirm" : "Delete"}
               </button>
             </div>
+            {confirmingDelete && (
+              <div style={{ fontSize: 11, color: "rgb(var(--text-muted))", marginTop: 8, textAlign: "center" }}>
+                This permanently deletes the file. Click "Delete" once more to confirm, or close this window to cancel.
+              </div>
+            )}
           </div>
         </div>
       )}
