@@ -18,7 +18,7 @@ const NAV = [
   { icon: BookOpen, label: "Journal", href: "/journal" },
   { icon: Flame, label: "Habits", href: "/habits" },
   { icon: Wallet, label: "Finance", href: "/finance" },
-  { icon: ImageIcon, label: "Media Vault", href: null },
+  { icon: ImageIcon, label: "Media Vault", href: "/media" },
   { icon: GraduationCap, label: "Learning", href: null },
   { icon: Lightbulb, label: "Idea Vault", href: null },
   { icon: Bot, label: "AI Assistant", href: null },
