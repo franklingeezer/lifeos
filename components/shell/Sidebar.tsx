@@ -19,9 +19,8 @@ const NAV = [
   { icon: Flame, label: "Habits", href: "/habits" },
   { icon: Wallet, label: "Finance", href: "/finance" },
   { icon: ImageIcon, label: "Media Vault", href: "/media" },
-  { icon: GraduationCap, label: "Learning", href: null },
   { icon: Lightbulb, label: "Idea Vault", href: "/idea-vault" },
-  { icon: Bot, label: "AI Assistant", href: null },
+  { icon: Bot, label: "AI Assistant", href: "/ai-assistant" },
   { icon: BarChart3, label: "Analytics", href: null },
   { icon: Settings, label: "Settings", href: null },
 ];
