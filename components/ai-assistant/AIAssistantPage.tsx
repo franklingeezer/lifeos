@@ -153,8 +153,8 @@ export default function AIAssistantPage() {
 
       <Sidebar />
 
-      <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px", display: "flex", gap: 20 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
+        <div style={{ maxWidth: 760 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div className="font-display" style={{ fontSize: 24, fontWeight: 500 }}>AI Assistant</div>
@@ -178,12 +178,44 @@ export default function AIAssistantPage() {
             .spin { animation: spin 0.8s linear infinite; }
           `}</style>
 
-          <div style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 24, minHeight: 280 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, color: "rgb(var(--accent))" }}>
-              <Sparkles size={16} />
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>
-                {selectedHistoryId ? `Brief from ${history.find((h) => h.id === selectedHistoryId)?.brief_date}` : "Today's Morning Brief"}
-              </span>
+          <div style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 24, minHeight: 220 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgb(var(--accent))" }}>
+                <Sparkles size={16} />
+                <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+                  {selectedHistoryId ? `Brief from ${history.find((h) => h.id === selectedHistoryId)?.brief_date}` : "Today's Morning Brief"}
+                </span>
+              </div>
+
+              {history.length > 1 && (
+                <div style={{ display: "flex", gap: 6, overflowX: "auto", maxWidth: "100%" }}>
+                  <button
+                    onClick={() => setSelectedHistoryId(null)}
+                    style={{
+                      padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                      border: `1px solid ${selectedHistoryId === null ? "rgb(var(--accent))" : "rgb(var(--border))"}`,
+                      background: selectedHistoryId === null ? "rgb(var(--accent) / 0.12)" : "transparent",
+                      color: selectedHistoryId === null ? "rgb(var(--accent))" : "rgb(var(--text-muted))",
+                    }}
+                  >
+                    Today
+                  </button>
+                  {history.filter((h) => h.brief_date !== today).map((h) => (
+                    <button
+                      key={h.id}
+                      onClick={() => setSelectedHistoryId(h.id)}
+                      style={{
+                        padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                        border: `1px solid ${selectedHistoryId === h.id ? "rgb(var(--accent))" : "rgb(var(--border))"}`,
+                        background: selectedHistoryId === h.id ? "rgb(var(--accent) / 0.12)" : "transparent",
+                        color: selectedHistoryId === h.id ? "rgb(var(--accent))" : "rgb(var(--text-muted))",
+                      }}
+                    >
+                      {h.brief_date.slice(5)}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {(loading || regenerating) && (
@@ -338,48 +370,70 @@ export default function AIAssistantPage() {
               )}
 
               {!reviewLoading && !reviewRegenerating && !reviewError && reviewContent && (
-                <div style={{ fontSize: 13.5, lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{reviewContent}</div>
+                <ReviewContent content={reviewContent} />
               )}
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
 
-        <div style={{ width: 220, flexShrink: 0 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: "rgb(var(--text-muted))", marginBottom: 10 }}>Past briefs</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <button
-              onClick={() => setSelectedHistoryId(null)}
-              className="history-row"
+// Parses the plain-text review into visually distinct blocks: the opening
+// line, ALL-CAPS section labels, bullets under each section, and any closing
+// observation line — instead of dumping it as one flat whitespace-wrapped blob.
+function ReviewContent({ content }: { content: string }) {
+  const lines = content.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  const isSectionLabel = (line: string) =>
+    line === line.toUpperCase() && /[A-Z]/.test(line) && !line.startsWith("•") && line.length < 30;
+
+  const blocks: { type: "intro" | "label" | "bullet" | "text"; text: string }[] = [];
+  lines.forEach((line, i) => {
+    if (line.startsWith("•")) blocks.push({ type: "bullet", text: line.replace(/^•\s*/, "") });
+    else if (isSectionLabel(line)) blocks.push({ type: "label", text: line });
+    else blocks.push({ type: i === 0 ? "intro" : "text", text: line });
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {blocks.map((b, i) => {
+        if (b.type === "intro") {
+          return (
+            <div key={i} style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+              {b.text}
+            </div>
+          );
+        }
+        if (b.type === "label") {
+          return (
+            <div
+              key={i}
+              className="font-mono"
               style={{
-                textAlign: "left", padding: "8px 10px", borderRadius: 8, fontSize: 12, cursor: "pointer", border: "none",
-                background: selectedHistoryId === null ? "rgb(var(--accent) / 0.12)" : "transparent",
-                color: selectedHistoryId === null ? "rgb(var(--accent))" : "rgb(var(--text-muted))",
+                fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, color: "rgb(var(--accent))",
+                marginTop: i === 1 ? 4 : 18, marginBottom: 6,
               }}
             >
-              Today ({today})
-            </button>
-            {history.filter((h) => h.brief_date !== today).map((h) => (
-              <button
-                key={h.id}
-                onClick={() => setSelectedHistoryId(h.id)}
-                className="history-row"
-                style={{
-                  textAlign: "left", padding: "8px 10px", borderRadius: 8, fontSize: 12, cursor: "pointer", border: "none",
-                  background: selectedHistoryId === h.id ? "rgb(var(--accent) / 0.12)" : "transparent",
-                  color: selectedHistoryId === h.id ? "rgb(var(--accent))" : "rgb(var(--text-muted))",
-                }}
-              >
-                {h.brief_date}
-              </button>
-            ))}
-            {history.length <= 1 && (
-              <div style={{ fontSize: 11, color: "rgb(var(--text-muted))", padding: "8px 10px" }}>
-                History builds up day by day.
-              </div>
-            )}
+              {b.text}
+            </div>
+          );
+        }
+        if (b.type === "bullet") {
+          return (
+            <div key={i} style={{ display: "flex", gap: 8, fontSize: 13.5, lineHeight: 1.6, paddingLeft: 2 }}>
+              <span style={{ color: "rgb(var(--text-muted))", flexShrink: 0 }}>•</span>
+              <span>{b.text}</span>
+            </div>
+          );
+        }
+        return (
+          <div key={i} style={{ fontSize: 13, lineHeight: 1.7, color: "rgb(var(--text-muted))", marginTop: 16, fontStyle: "italic" }}>
+            {b.text}
           </div>
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 }

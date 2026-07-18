@@ -30,3 +30,29 @@ body {
   background: rgb(var(--bg));
   color: rgb(var(--text));
 }
+
+/* Scrollbars — default browser scrollbars are light/white and clash hard
+   with the dark theme. Style them to match instead of leaving them native. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border)) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--border));
+  border-radius: 999px;
+  border: 2px solid rgb(var(--bg));
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--text-muted));
+}
