@@ -2,9 +2,19 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { RefreshCw, Sparkles, Clock, AlertCircle, Search, FileText, CheckSquare, FolderKanban, BookOpen, ListOrdered, Check } from "lucide-react";
+import { RefreshCw, Sparkles, Clock, AlertCircle, Search, FileText, CheckSquare, FolderKanban, BookOpen, ListOrdered, Check, NotebookPen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
+
+type TabKey = "brief" | "search" | "review" | "prioritize" | "journal";
+
+const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
+  { key: "brief", label: "Morning Brief", icon: Sparkles },
+  { key: "search", label: "Ask LifeOS", icon: Search },
+  { key: "review", label: "Review", icon: RefreshCw },
+  { key: "prioritize", label: "Prioritize", icon: ListOrdered },
+  { key: "journal", label: "Journal Insights", icon: NotebookPen },
+];
 
 type PastBrief = {
   id: string;
@@ -46,6 +56,7 @@ const TYPE_META: Record<SearchResult["type"], { label: string; icon: React.Eleme
 
 export default function AIAssistantPage() {
   const supabase = useMemo(() => createClient(), []);
+  const [activeTab, setActiveTab] = useState<TabKey>("brief");
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
@@ -157,6 +168,39 @@ export default function AIAssistantPage() {
     fetchReview(reviewType, false);
   }, [reviewType, fetchReview]);
 
+  const [journalRange, setJournalRange] = useState<"30d" | "90d" | "all">("30d");
+  const [journalContent, setJournalContent] = useState<string | null>(null);
+  const [journalEntryCount, setJournalEntryCount] = useState<number | null>(null);
+  const [journalLoading, setJournalLoading] = useState(false);
+  const [journalRegenerating, setJournalRegenerating] = useState(false);
+  const [journalError, setJournalError] = useState<string | null>(null);
+  const [journalPeriod, setJournalPeriod] = useState<{ start: string | null; end: string } | null>(null);
+
+  const fetchJournalInsights = useCallback(async (range: "30d" | "90d" | "all", regenerate: boolean) => {
+    regenerate ? setJournalRegenerating(true) : setJournalLoading(true);
+    setJournalError(null);
+    try {
+      const res = await fetch(`/api/journal-insights?range=${range}${regenerate ? "&regenerate=true" : ""}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setJournalError(data.error || "Something went wrong generating journal insights.");
+      } else {
+        setJournalContent(data.content);
+        setJournalEntryCount(data.entry_count);
+        setJournalPeriod(data.period);
+      }
+    } catch {
+      setJournalError("Couldn't reach the server. Is the dev server running?");
+    } finally {
+      setJournalLoading(false);
+      setJournalRegenerating(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchJournalInsights(journalRange, false);
+  }, [journalRange, fetchJournalInsights]);
+
   const fetchBrief = useCallback(async (regenerate: boolean) => {
     regenerate ? setRegenerating(true) : setLoading(true);
     setError(null);
@@ -212,11 +256,39 @@ export default function AIAssistantPage() {
       <Sidebar />
 
       <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
-        <div style={{ maxWidth: 760 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div className="font-display" style={{ fontSize: 24, fontWeight: 500 }}>AI Assistant</div>
-            </div>
+        <div style={{ maxWidth: 900, margin: "0 auto" }}>
+          <div className="font-display" style={{ fontSize: 24, fontWeight: 500, marginBottom: 16 }}>AI Assistant</div>
+
+          <div style={{ display: "flex", gap: 6, marginBottom: 22, borderBottom: "1px solid rgb(var(--border))", overflowX: "auto" }}>
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              const active = activeTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setActiveTab(t.key)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                    background: "transparent", border: "none", whiteSpace: "nowrap",
+                    color: active ? "rgb(var(--accent))" : "rgb(var(--text-muted))",
+                    borderBottom: active ? "2px solid rgb(var(--accent))" : "2px solid transparent",
+                    marginBottom: -1,
+                  }}
+                >
+                  <Icon size={13} /> {t.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <style>{`
+            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            .spin { animation: spin 0.8s linear infinite; }
+          `}</style>
+
+          {activeTab === "brief" && (
+          <div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
             <button
               className="regen-btn"
               onClick={() => fetchBrief(true)}
@@ -230,11 +302,6 @@ export default function AIAssistantPage() {
               <RefreshCw size={13} className={regenerating ? "spin" : ""} /> Regenerate
             </button>
           </div>
-
-          <style>{`
-            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-            .spin { animation: spin 0.8s linear infinite; }
-          `}</style>
 
           <div style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 24, minHeight: 220 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
@@ -299,8 +366,11 @@ export default function AIAssistantPage() {
               </div>
             )}
           </div>
+          </div>
+          )}
 
-          <div style={{ marginTop: 24 }}>
+          {activeTab === "search" && (
+          <div>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Ask LifeOS</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
               <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 10, padding: "0 12px" }}>
@@ -372,8 +442,10 @@ export default function AIAssistantPage() {
               </div>
             )}
           </div>
+          )}
 
-          <div style={{ marginTop: 28 }}>
+          {activeTab === "review" && (
+          <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Review</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -432,8 +504,10 @@ export default function AIAssistantPage() {
               )}
             </div>
           </div>
+          )}
 
-          <div style={{ marginTop: 28 }}>
+          {activeTab === "prioritize" && (
+          <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>Prioritize tasks</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -548,6 +622,76 @@ export default function AIAssistantPage() {
               </>
             )}
           </div>
+          )}
+
+          {activeTab === "journal" && (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <NotebookPen size={15} color="rgb(var(--accent))" />
+                <div style={{ fontSize: 13, fontWeight: 600 }}>Journal insights</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 999, padding: 3 }}>
+                  {([
+                    { key: "30d", label: "30 days" },
+                    { key: "90d", label: "90 days" },
+                    { key: "all", label: "All time" },
+                  ] as const).map((r) => (
+                    <button
+                      key={r.key}
+                      onClick={() => setJournalRange(r.key)}
+                      style={{
+                        padding: "5px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 600, cursor: "pointer", border: "none",
+                        background: journalRange === r.key ? "rgb(var(--accent))" : "transparent",
+                        color: journalRange === r.key ? "rgb(var(--bg))" : "rgb(var(--text-muted))",
+                      }}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="regen-btn"
+                  onClick={() => fetchJournalInsights(journalRange, true)}
+                  disabled={journalRegenerating || journalLoading}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 8,
+                    background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", color: "rgb(var(--text))",
+                    fontSize: 11.5, fontWeight: 600, cursor: journalRegenerating || journalLoading ? "default" : "pointer", opacity: journalRegenerating ? 0.6 : 1,
+                  }}
+                >
+                  <RefreshCw size={11} className={journalRegenerating ? "spin" : ""} /> Regenerate
+                </button>
+              </div>
+            </div>
+
+            <div style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 20, minHeight: 140 }}>
+              {journalPeriod && !journalLoading && journalEntryCount !== null && journalEntryCount > 0 && (
+                <div style={{ fontSize: 10.5, color: "rgb(var(--text-muted))", marginBottom: 12 }}>
+                  {journalPeriod.start ? `${journalPeriod.start} → ${journalPeriod.end}` : `through ${journalPeriod.end}`} · {journalEntryCount} {journalEntryCount === 1 ? "entry" : "entries"}
+                </div>
+              )}
+
+              {(journalLoading || journalRegenerating) && (
+                <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>
+                  {journalRegenerating ? "Regenerating…" : "Loading insights…"}
+                </div>
+              )}
+
+              {!journalLoading && !journalRegenerating && journalError && (
+                <div style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: 14, borderRadius: 10, background: "rgb(var(--danger) / 0.1)", border: "1px solid rgb(var(--danger) / 0.3)" }}>
+                  <AlertCircle size={16} color="rgb(var(--danger))" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ fontSize: 12.5, color: "rgb(var(--danger))", lineHeight: 1.5 }}>{journalError}</div>
+                </div>
+              )}
+
+              {!journalLoading && !journalRegenerating && !journalError && journalContent && (
+                <ReviewContent content={journalContent} />
+              )}
+            </div>
+          </div>
+          )}
         </div>
       </div>
     </div>
