@@ -22,7 +22,7 @@ const NAV = [
   { icon: GraduationCap, label: "Learning", href: "/learning" },
   { icon: Lightbulb, label: "Idea Vault", href: "/idea-vault" },
   { icon: Bot, label: "AI Assistant", href: "/ai-assistant" },
-  { icon: BarChart3, label: "Analytics", href: null },
+  { icon: BarChart3, label: "Analytics", href: "/analytics" },
   { icon: Settings, label: "Settings", href: null },
 ];
 
