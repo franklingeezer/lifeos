@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 const MODEL = "llama-3.3-70b-versatile";
 
 // Swap this if the brief should address someone else.
-const USER_NAME = "Chief";
+// Fallback if app_settings has no row yet — actual name comes from Settings.
+const DEFAULT_USER_NAME = "Chief";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -46,6 +47,9 @@ export async function GET(req: NextRequest) {
   const regenerate = req.nextUrl.searchParams.get("regenerate") === "true";
   const today = todayISO();
   const supabase = createClient();
+
+  const { data: settingsRow } = await supabase.from("app_settings").select("display_name").eq("id", 1).maybeSingle();
+  const USER_NAME = settingsRow?.display_name || DEFAULT_USER_NAME;
 
   if (!regenerate) {
     const { data: cached } = await supabase

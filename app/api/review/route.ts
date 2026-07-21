@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 const MODEL = "llama-3.3-70b-versatile";
-const USER_NAME = "Chief";
+const DEFAULT_USER_NAME = "Chief";
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -41,6 +41,9 @@ export async function GET(req: NextRequest) {
   const regenerate = req.nextUrl.searchParams.get("regenerate") === "true";
   const { start, end } = periodFor(type);
   const supabase = createClient();
+
+  const { data: settingsRow } = await supabase.from("app_settings").select("display_name").eq("id", 1).maybeSingle();
+  const USER_NAME = settingsRow?.display_name || DEFAULT_USER_NAME;
 
   if (!regenerate) {
     const { data: cached } = await supabase

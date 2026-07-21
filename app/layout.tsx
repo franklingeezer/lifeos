@@ -13,7 +13,21 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Applies saved theme before paint, avoiding a flash of the wrong theme.
+            Dark is the default (see globals.css :root); this only adds .light when needed. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var t = localStorage.getItem('lifeos-theme');
+                if (t === 'light') document.documentElement.classList.add('light');
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} ${fraunces.variable} ${plexMono.variable} font-sans`}>
         {children}
       </body>
