@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { toLocalISODate } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 
 type Task = {
@@ -26,7 +27,7 @@ const THEME_KEY = "lifeos-theme";
 const DEFAULT_NAME = "Chief";
 const WEEK_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
-const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+const isoDate = toLocalISODate;
 
 function computeStreak(dates: string[]): number {
   if (dates.length === 0) return 0;
@@ -332,7 +333,8 @@ export default function Dashboard() {
           </div>
 
           {/* Active projects — live */}
-          <div className="lifeos-card" style={{ gridColumn: "span 3", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 18 }}>
+          <Link href="/projects" style={{ textDecoration: "none", color: "inherit", gridColumn: "span 3" }}>
+          <div className="lifeos-card" style={{ height: "100%", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 18, cursor: "pointer" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
               <FolderKanban size={13} color="rgb(var(--text-muted))" />
               <span style={{ fontSize: 12.5, color: "rgb(var(--text-muted))" }}>Active projects</span>
@@ -342,9 +344,11 @@ export default function Dashboard() {
               {projects.length > 0 ? `avg ${Math.round(projects.reduce((s, p) => s + p.progress, 0) / projects.length)}% progress` : "none right now"}
             </div>
           </div>
+          </Link>
 
           {/* Projects list — live */}
-          <div className="lifeos-card" style={{ gridColumn: "span 5", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 18 }}>
+          <Link href="/projects" style={{ textDecoration: "none", color: "inherit", gridColumn: "span 5" }}>
+          <div className="lifeos-card" style={{ height: "100%", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 18, cursor: "pointer" }}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Project progress</div>
             {projects.length === 0 && <div style={{ fontSize: 12.5, color: "rgb(var(--text-muted))" }}>No active projects.</div>}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -361,6 +365,7 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+          </Link>
 
           {/* This week — live event dots */}
           <div className="lifeos-card" style={{ gridColumn: "span 7", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 18 }}>

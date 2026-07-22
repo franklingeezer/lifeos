@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { CheckSquare, Flame, Wallet, BookOpen, FolderKanban, Lightbulb } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { toLocalISODate as isoDate } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 
 const ACCENT = "rgb(var(--accent))";
@@ -15,8 +16,6 @@ const DANGER = "rgb(var(--danger))";
 const BLUE = "#5FA8D3";
 const PURPLE = "#8B7FD6";
 const MUTED = "rgb(var(--text-muted))";
-
-const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
 function computeStreak(dates: string[]): number {
   if (dates.length === 0) return 0;
@@ -166,7 +165,7 @@ export default function AnalyticsPage() {
       const statusOrder = ["spark", "developing", "validated", "archived"];
       const counts = new Map<string, number>(statusOrder.map((s) => [s, 0]));
       (ideas ?? []).forEach((i) => counts.set(i.status, (counts.get(i.status) ?? 0) + 1));
-      setIdeaCounts(statusOrder.map((s) => ({ status: s, count: counts.get(s) ?? 0 })));
+      setIdeaCounts(statusOrder.map((s) => ({ status: s[0].toUpperCase() + s.slice(1), count: counts.get(s) ?? 0 })));
 
       // Projects
       setProjectStats((projects ?? []).map((p) => ({ name: p.name, progress: p.progress ?? 0, status: p.status })));
@@ -185,7 +184,7 @@ export default function AnalyticsPage() {
     load();
   }, [supabase]);
 
-  const ideaColors: Record<string, string> = { spark: GOLD, developing: BLUE, validated: ACCENT, archived: MUTED };
+  const ideaColors: Record<string, string> = { Spark: GOLD, Developing: BLUE, Validated: ACCENT, Archived: MUTED };
 
   return (
     <div
@@ -272,7 +271,7 @@ export default function AnalyticsPage() {
                     <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: "rgb(var(--text-muted))" }} axisLine={false} tickLine={false} />
                     <YAxis
                       type="category" dataKey="status" width={80}
-                      tick={{ fontSize: 11, fill: "rgb(var(--text-muted))", textTransform: "capitalize" as const }}
+                      tick={{ fontSize: 11, fill: "rgb(var(--text-muted))" }}
                       axisLine={false} tickLine={false}
                     />
                     <Tooltip contentStyle={{ background: "rgb(var(--surface-2))", border: "1px solid rgb(var(--border))", borderRadius: 8, fontSize: 12 }} />

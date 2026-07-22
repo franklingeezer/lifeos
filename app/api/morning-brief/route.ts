@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { todayISO, toLocalISODate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +11,6 @@ const MODEL = "llama-3.3-70b-versatile";
 // Swap this if the brief should address someone else.
 // Fallback if app_settings has no row yet — actual name comes from Settings.
 const DEFAULT_USER_NAME = "Chief";
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function daysBetween(a: Date, b: Date) {
   return Math.round((a.getTime() - b.getTime()) / (1000 * 60 * 60 * 24));
@@ -30,13 +27,13 @@ function computeStreak(dates: string[]): number {
   // Streak counts from today if today's logged, otherwise from yesterday
   // (so a habit isn't shown as "broken" just because it's still morning).
   let cursor = new Date(today);
-  if (!set.has(cursor.toISOString().slice(0, 10))) {
+  if (!set.has(toLocalISODate(cursor))) {
     cursor.setDate(cursor.getDate() - 1);
-    if (!set.has(cursor.toISOString().slice(0, 10))) return 0;
+    if (!set.has(toLocalISODate(cursor))) return 0;
   }
 
   let streak = 0;
-  while (set.has(cursor.toISOString().slice(0, 10))) {
+  while (set.has(toLocalISODate(cursor))) {
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);
   }
@@ -71,7 +68,7 @@ export async function GET(req: NextRequest) {
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+  const tomorrowISO = toLocalISODate(tomorrow);
 
   const [{ data: overdueTasks }, { data: todayTasks }, { data: tomorrowTasks }, { data: habits }, { data: activeProjects }] =
     await Promise.all([
@@ -92,7 +89,7 @@ export async function GET(req: NextRequest) {
       .select("habit_id, date")
       .in("habit_id", habitIds)
       .eq("completed", true)
-      .gte("date", cutoff.toISOString().slice(0, 10));
+      .gte("date", toLocalISODate(cutoff));
 
     habitStreaks = habits.map((h) => {
       const dates = (logs ?? []).filter((l) => l.habit_id === h.id).map((l) => l.date);

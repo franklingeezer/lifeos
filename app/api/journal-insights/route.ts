@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { toLocalISODate as isoDate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
@@ -7,10 +8,6 @@ const MODEL = "llama-3.3-70b-versatile";
 const DEFAULT_USER_NAME = "Chief";
 
 type RangeType = "30d" | "90d" | "all";
-
-function isoDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
 
 function rangeFor(range: RangeType) {
   const end = new Date();

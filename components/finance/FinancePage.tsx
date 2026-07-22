@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, X, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, PiggyBank, LineChart as LineChartIcon } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { createClient } from "@/lib/supabase/client";
+import { todayISO, toLocalISODate } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 import DebtsPanel from "@/components/finance/DebtsPanel";
 
@@ -30,7 +31,7 @@ const emptyForm = {
   category: "",
   amount_bdt: "",
   note: "",
-  occurred_on: new Date().toISOString().slice(0, 10),
+  occurred_on: todayISO(),
 };
 
 const bdt = (n: number) =>
@@ -53,8 +54,8 @@ export default function FinancePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const start = new Date(cursor.year, cursor.month, 1).toISOString().slice(0, 10);
-    const end = new Date(cursor.year, cursor.month + 1, 0).toISOString().slice(0, 10);
+    const start = toLocalISODate(new Date(cursor.year, cursor.month, 1));
+    const end = toLocalISODate(new Date(cursor.year, cursor.month + 1, 0));
     const { data, error } = await supabase
       .from("finance_transactions")
       .select("id, type, category, amount_bdt, note, occurred_on")

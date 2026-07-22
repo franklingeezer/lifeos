@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { RefreshCw, Sparkles, Clock, AlertCircle, Search, FileText, CheckSquare, FolderKanban, BookOpen, ListOrdered, Check, NotebookPen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { todayISO } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 
 type TabKey = "brief" | "search" | "review" | "prioritize" | "journal";
@@ -239,7 +240,7 @@ export default function AIAssistantPage() {
     ? history.find((h) => h.id === selectedHistoryId)?.content ?? content
     : content;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
 
   return (
     <div

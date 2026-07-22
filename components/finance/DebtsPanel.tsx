@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, X, Check, Trash2, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { todayISO } from "@/lib/date";
 
 type Direction = "owed_to_me" | "i_owe";
 
@@ -176,7 +177,7 @@ function DebtColumn({
   onToggle: (d: Debt) => void;
   onDelete: (id: string) => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   return (
     <div style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, overflow: "hidden" }}>
       <div style={{ padding: "10px 14px", borderBottom: "1px solid rgb(var(--border))", fontSize: 12.5, fontWeight: 600, color: "rgb(var(--text-muted))" }}>

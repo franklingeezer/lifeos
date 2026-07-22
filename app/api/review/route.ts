@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { toLocalISODate as isoDate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
 const MODEL = "llama-3.3-70b-versatile";
 const DEFAULT_USER_NAME = "Chief";
-
-function isoDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
 
 function periodFor(type: "weekly" | "monthly") {
   const end = new Date();
@@ -105,7 +102,7 @@ export async function GET(req: NextRequest) {
       .select("habit_id, date")
       .in("habit_id", habitIds)
       .eq("completed", true)
-      .gte("date", cutoff.toISOString().slice(0, 10));
+      .gte("date", isoDate(cutoff));
 
     habitSummary = habits.map((h) => {
       const allDates = (logs ?? []).filter((l) => l.habit_id === h.id).map((l) => l.date);

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, X, Flame, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { toLocalISODate } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 
 type Habit = { id: string; name: string; color: string };
@@ -11,7 +12,7 @@ type HabitLog = { id: string; habit_id: string; date: string; completed: boolean
 const SWATCHES = ["#5EA8A0", "#D4A857", "#C57B6B", "#6C8EF5", "#9B8AC4"];
 const GRID_DAYS = 35;
 
-const toISODate = (d: Date) => d.toISOString().slice(0, 10);
+const toISODate = toLocalISODate;
 const todayISO = toISODate(new Date());
 
 function lastNDays(n: number): string[] {

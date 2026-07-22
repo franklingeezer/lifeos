@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Search, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { toLocalISODate } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 
 type Entry = {
@@ -19,7 +20,7 @@ type Entry = {
 };
 
 const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
-const toISODate = (d: Date) => d.toISOString().slice(0, 10);
+const toISODate = toLocalISODate;
 const todayISO = toISODate(new Date());
 
 export default function JournalPage() {
