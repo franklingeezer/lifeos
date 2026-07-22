@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { User, Palette, Coins, Trash2, Check, Sun, Moon, Database } from "lucide-react";
+import { User, Palette, Coins, Trash2, Check, Sun, Moon, Database, AlertTriangle, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
 
@@ -71,19 +71,116 @@ export default function SettingsPage() {
         display: "flex", borderRadius: 20, overflow: "hidden", border: "1px solid rgb(var(--border))", position: "relative",
       }}
     >
+      <style>{`
+        .settings-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 16px;
+          align-items: start;
+        }
+        @media (max-width: 760px) {
+          .settings-grid { grid-template-columns: 1fr; }
+        }
+        .settings-card.full { grid-column: 1 / -1; }
+        .settings-card { container-type: inline-size; container-name: settings-card; }
+
+        .settings-row {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          padding: 14px 0;
+          border-bottom: 1px solid rgb(var(--border));
+        }
+        .settings-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .settings-row:first-child { padding-top: 0; }
+
+        /* Side-by-side label/control once a card actually has room for it —
+           keyed to the card's own width, not the viewport, so it never
+           squeezes the label into a wrapped ribbon inside a narrow grid cell. */
+        @container settings-card (min-width: 480px) {
+          .settings-row {
+            flex-direction: row;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+          }
+          .settings-row-label { max-width: 280px; flex-shrink: 0; }
+          .settings-row-control { flex-shrink: 0; }
+        }
+
+        .settings-input {
+          padding: 9px 12px;
+          border-radius: 8px;
+          background: rgb(var(--surface-2));
+          border: 1px solid rgb(var(--border));
+          color: rgb(var(--text));
+          font-size: 13px;
+          outline: none;
+          width: 100%;
+          max-width: 320px;
+          transition: border-color .15s ease, box-shadow .15s ease;
+        }
+        .settings-input:hover { border-color: rgb(var(--text-muted) / 0.5); }
+        .settings-input:focus { border-color: rgb(var(--accent)); box-shadow: 0 0 0 3px rgb(var(--accent) / 0.15); }
+        .settings-input.narrow { width: 88px; text-align: center; }
+
+        .theme-btn {
+          display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 9px;
+          font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all .15s ease;
+        }
+        .theme-btn:not(.active):hover { background: rgb(var(--surface-2)); color: rgb(var(--text)); }
+
+        .clear-cache-btn { transition: filter .15s ease, transform .1s ease; }
+        .clear-cache-btn:hover { filter: brightness(1.08); }
+        .clear-cache-btn:active { transform: scale(0.98); }
+
+        .save-badge {
+          display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+          font-size: 12px; font-weight: 500; animation: save-badge-in .18s ease;
+        }
+        @keyframes save-badge-in {
+          from { opacity: 0; transform: translateY(-3px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spin { animation: spin 0.8s linear infinite; }
+      `}</style>
+
       <Sidebar />
 
       <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
-        <div style={{ maxWidth: 640 }}>
-          <div className="font-display" style={{ fontSize: 24, fontWeight: 500, marginBottom: 20 }}>Settings</div>
+        <div style={{ maxWidth: 720 }}>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 24 }}>
+            <div>
+              <div className="font-display" style={{ fontSize: 24, fontWeight: 500, marginBottom: 4 }}>Settings</div>
+              <div style={{ fontSize: 12.5, color: "rgb(var(--text-muted))" }}>
+                Personalize how LifeOS looks, feels, and talks to you.
+              </div>
+            </div>
+
+            {saved !== "idle" && (
+              <div
+                className="save-badge"
+                style={{
+                  background: saved === "saved" ? "rgb(var(--accent) / 0.12)" : "rgb(var(--surface-2))",
+                  color: saved === "saved" ? "rgb(var(--accent))" : "rgb(var(--text-muted))",
+                  border: `1px solid ${saved === "saved" ? "rgb(var(--accent) / 0.3)" : "rgb(var(--border))"}`,
+                }}
+              >
+                {saved === "saved" ? <Check size={13} /> : <Loader2 size={13} className="spin" />}
+                {saved === "saved" ? "Saved" : "Saving…"}
+              </div>
+            )}
+          </div>
 
           {loading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading…</div>}
 
           {!loading && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="settings-grid">
               {/* Profile */}
-              <SettingsCard icon={User} title="Profile">
-                <FieldRow label="Display name" hint="Used by the AI Assistant — Morning Brief, Reviews, and Journal Insights all address you by this name.">
+              <SettingsCard icon={User} title="Profile" description="How the AI Assistant refers to you">
+                <SettingsRow label="Display name" hint="Used by Morning Brief, Reviews, and Journal Insights.">
                   <input
                     key={settings.display_name}
                     defaultValue={settings.display_name}
@@ -91,24 +188,24 @@ export default function SettingsPage() {
                       const v = e.target.value.trim();
                       if (v && v !== settings.display_name) saveSettings({ display_name: v });
                     }}
-                    style={inputStyle}
+                    className="settings-input"
                   />
-                </FieldRow>
+                </SettingsRow>
               </SettingsCard>
 
               {/* Appearance */}
-              <SettingsCard icon={Palette} title="Appearance">
-                <FieldRow label="Theme">
+              <SettingsCard icon={Palette} title="Appearance" description="Light or dark, your call">
+                <SettingsRow label="Theme">
                   <div style={{ display: "flex", gap: 8 }}>
                     <ThemeButton icon={Moon} label="Dark" active={theme === "dark"} onClick={() => applyTheme("dark")} />
                     <ThemeButton icon={Sun} label="Light" active={theme === "light"} onClick={() => applyTheme("light")} />
                   </div>
-                </FieldRow>
+                </SettingsRow>
               </SettingsCard>
 
               {/* Currency */}
-              <SettingsCard icon={Coins} title="Currency">
-                <FieldRow label="Symbol" hint="Displayed in Finance and Debts & Loans.">
+              <SettingsCard icon={Coins} title="Currency" description="Used across Finance and Debts & Loans">
+                <SettingsRow label="Symbol" hint="Shown before every amount.">
                   <input
                     key={settings.currency_symbol}
                     defaultValue={settings.currency_symbol}
@@ -116,10 +213,10 @@ export default function SettingsPage() {
                       const v = e.target.value.trim();
                       if (v && v !== settings.currency_symbol) saveSettings({ currency_symbol: v });
                     }}
-                    style={{ ...inputStyle, width: 80 }}
+                    className="settings-input narrow"
                   />
-                </FieldRow>
-                <FieldRow label="Code" hint="Reference only — not yet wired into every module.">
+                </SettingsRow>
+                <SettingsRow label="Code" hint="Reference only — not yet wired into every module.">
                   <input
                     key={settings.currency_code}
                     defaultValue={settings.currency_code}
@@ -127,21 +224,27 @@ export default function SettingsPage() {
                       const v = e.target.value.trim().toUpperCase();
                       if (v && v !== settings.currency_code) saveSettings({ currency_code: v });
                     }}
-                    style={{ ...inputStyle, width: 100 }}
+                    className="settings-input narrow"
+                    style={{ width: 100 }}
                   />
-                </FieldRow>
-                <div style={{ fontSize: 11, color: "rgb(var(--text-muted))", marginTop: 4 }}>
-                  Note: Finance and Debts & Loans currently display a hard-coded ৳ symbol regardless of this setting — updating them to read from here is a follow-up, not done yet.
+                </SettingsRow>
+                <div style={{
+                  display: "flex", gap: 8, fontSize: 11, color: "rgb(var(--text-muted))",
+                  marginTop: 14, padding: "10px 12px", background: "rgb(var(--surface-2))", borderRadius: 8, lineHeight: 1.5,
+                }}>
+                  <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>Finance and Debts &amp; Loans currently show a hard-coded ৳ symbol regardless of this setting — wiring them up is a follow-up.</span>
                 </div>
               </SettingsCard>
 
-              {/* Data */}
-              <SettingsCard icon={Database} title="AI data">
-                <div style={{ fontSize: 12.5, color: "rgb(var(--text-muted))", marginBottom: 12, lineHeight: 1.5 }}>
-                  Morning Brief, Reviews, and Journal Insights are cached to avoid unnecessary API calls. Clear the cache to force everything to regenerate next time you open it — useful after a display name change or if something looks stale.
+              {/* Data / danger zone */}
+              <SettingsCard icon={Database} title="AI data" description="Cached brief, review & insight data" danger>
+                <div style={{ fontSize: 12.5, color: "rgb(var(--text-muted))", marginBottom: 14, lineHeight: 1.55 }}>
+                  Morning Brief, Reviews, and Journal Insights are cached to avoid unnecessary API calls. Clear the cache to force everything to regenerate next time you open it.
                 </div>
                 <button
                   onClick={clearAiCache}
+                  className="clear-cache-btn"
                   style={{
                     display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
                     background: confirmingClear ? "rgb(var(--danger))" : "rgb(var(--danger) / 0.12)",
@@ -157,12 +260,6 @@ export default function SettingsPage() {
                   </div>
                 )}
               </SettingsCard>
-
-              {saved !== "idle" && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: saved === "saved" ? "rgb(var(--accent))" : "rgb(var(--text-muted))" }}>
-                  {saved === "saved" ? <><Check size={13} /> Saved</> : "Saving…"}
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -171,24 +268,49 @@ export default function SettingsPage() {
   );
 }
 
-function SettingsCard({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
+function SettingsCard({
+  icon: Icon, title, description, danger, children,
+}: {
+  icon: React.ElementType; title: string; description?: string; danger?: boolean; children: React.ReactNode;
+}) {
   return (
-    <div style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-        <Icon size={15} color="rgb(var(--accent))" />
-        <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
+    <div
+      className="settings-card"
+      style={{
+        background: "rgb(var(--surface))",
+        border: `1px solid ${danger ? "rgb(var(--danger) / 0.25)" : "rgb(var(--border))"}`,
+        borderRadius: 16,
+        padding: "20px 22px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <div
+          style={{
+            width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: danger ? "rgb(var(--danger) / 0.12)" : "rgb(var(--accent) / 0.12)",
+          }}
+        >
+          <Icon size={16} color={danger ? "rgb(var(--danger))" : "rgb(var(--accent))"} />
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{title}</div>
+          {description && <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))", marginTop: 1 }}>{description}</div>}
+        </div>
       </div>
       {children}
     </div>
   );
 }
 
-function FieldRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function SettingsRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{label}</div>
-      {children}
-      {hint && <div style={{ fontSize: 11, color: "rgb(var(--text-muted))", marginTop: 6 }}>{hint}</div>}
+    <div className="settings-row">
+      <div className="settings-row-label">
+        <div style={{ fontSize: 13, fontWeight: 500 }}>{label}</div>
+        {hint && <div style={{ fontSize: 11, color: "rgb(var(--text-muted))", marginTop: 4, lineHeight: 1.5 }}>{hint}</div>}
+      </div>
+      <div className="settings-row-control">{children}</div>
     </div>
   );
 }
@@ -197,8 +319,8 @@ function ThemeButton({ icon: Icon, label, active, onClick }: { icon: React.Eleme
   return (
     <button
       onClick={onClick}
+      className={`theme-btn${active ? " active" : ""}`}
       style={{
-        display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
         border: `1px solid ${active ? "rgb(var(--accent))" : "rgb(var(--border))"}`,
         background: active ? "rgb(var(--accent) / 0.12)" : "rgb(var(--surface-2))",
         color: active ? "rgb(var(--accent))" : "rgb(var(--text-muted))",
@@ -208,8 +330,3 @@ function ThemeButton({ icon: Icon, label, active, onClick }: { icon: React.Eleme
     </button>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  padding: "9px 12px", borderRadius: 8, background: "rgb(var(--surface-2))",
-  border: "1px solid rgb(var(--border))", color: "rgb(var(--text))", fontSize: 13, outline: "none", width: "100%", maxWidth: 320,
-};
