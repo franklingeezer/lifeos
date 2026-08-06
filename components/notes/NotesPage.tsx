@@ -1,30 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Plus, Search, Pin, Trash2, Eye, Pencil, X, Folder as FolderIcon,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
-
-type Note = {
-  id: string;
-  title: string;
-  content: string | null;
-  folder: string | null;
-  tags: string[] | null;
-  pinned: boolean;
-  updated_at: string;
-};
+import { useNotes, type Note } from "@/hooks/useNotes";
 
 const stripMd = (s: string) => s.replace(/[#*`_>\-\[\]]/g, "").replace(/\n+/g, " ").trim();
 
 export default function NotesPage() {
-  const supabase = useMemo(() => createClient(), []);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { notes, isLoading, createNote, updateNote, togglePin, deleteNote } = useNotes();
+
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("all"); // "all" | "pinned" | folder name
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -34,21 +23,12 @@ export default function NotesPage() {
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("notes")
-      .select("id, title, content, folder, tags, pinned, updated_at")
-      .order("pinned", { ascending: false })
-      .order("updated_at", { ascending: false });
-    if (!error && data) {
-      setNotes(data as Note[]);
-      if (!activeId && data.length > 0) setActiveId(data[0].id);
-    }
-    setLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
-
-  useEffect(() => { load(); }, [load]);
+  // Auto-select the first note once notes load, same as the old load().
+  const hasAutoSelected = useRef(false);
+  if (!hasAutoSelected.current && !isLoading && notes.length > 0 && !activeId) {
+    hasAutoSelected.current = true;
+    setActiveId(notes[0].id);
+  }
 
   const active = notes.find((n) => n.id === activeId) ?? null;
 
@@ -62,35 +42,26 @@ export default function NotesPage() {
     return n.title.toLowerCase().includes(q) || (n.content ?? "").toLowerCase().includes(q);
   });
 
-  const createNote = async () => {
-    const payload = { title: "Untitled note", content: "", folder: null, tags: [], pinned: false };
-    const { data, error } = await supabase.from("notes").insert(payload).select().single();
-    if (!error && data) {
-      setNotes((prev) => [data as Note, ...prev]);
-      setActiveId(data.id);
-      setMode("edit");
-    }
+  const handleCreateNote = async () => {
+    const created = await createNote();
+    setActiveId(created.id);
+    setMode("edit");
   };
 
+  // Debounce stays here in the component — it's a UI timing decision, not
+  // a data-fetching concern, so it doesn't belong in the hook.
   const scheduleSave = (id: string, patch: Partial<Note>) => {
-    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      await supabase.from("notes").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+      await updateNote(id, patch);
       setSaveStatus("saved");
     }, 700);
   };
 
-  const togglePin = async (n: Note) => {
-    setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, pinned: !x.pinned } : x)));
-    await supabase.from("notes").update({ pinned: !n.pinned }).eq("id", n.id);
-  };
-
-  const deleteNote = async (id: string) => {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
+  const handleDeleteNote = (id: string) => {
     if (activeId === id) setActiveId(null);
-    await supabase.from("notes").delete().eq("id", id);
+    deleteNote(id);
   };
 
   const addTag = (n: Note) => {
@@ -130,7 +101,7 @@ export default function NotesPage() {
         <div style={{ padding: "18px 16px 12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div className="font-display" style={{ fontSize: 19, fontWeight: 500 }}>Notes</div>
-            <button onClick={createNote} className="icon-btn" style={{ width: 28, height: 28, borderRadius: 8, background: "rgb(var(--accent))", color: "rgb(var(--bg))", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <button onClick={handleCreateNote} className="icon-btn" style={{ width: 28, height: 28, borderRadius: 8, background: "rgb(var(--accent))", color: "rgb(var(--bg))", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <Plus size={15} />
             </button>
           </div>
@@ -146,8 +117,8 @@ export default function NotesPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 12px" }}>
-          {loading && <div style={{ fontSize: 12.5, color: "rgb(var(--text-muted))", padding: "8px 8px" }}>Loading…</div>}
-          {!loading && filtered.length === 0 && <div style={{ fontSize: 12.5, color: "rgb(var(--text-muted))", padding: "8px 8px" }}>No notes here.</div>}
+          {isLoading && <div style={{ fontSize: 12.5, color: "rgb(var(--text-muted))", padding: "8px 8px" }}>Loading…</div>}
+          {!isLoading && filtered.length === 0 && <div style={{ fontSize: 12.5, color: "rgb(var(--text-muted))", padding: "8px 8px" }}>No notes here.</div>}
           {filtered.map((n) => (
             <div
               key={n.id}
@@ -197,7 +168,7 @@ export default function NotesPage() {
                   <button onClick={() => setMode(mode === "edit" ? "preview" : "edit")} className="icon-btn" style={iconBtnStyle} title="Toggle preview">
                     {mode === "edit" ? <Eye size={14} color="rgb(var(--text-muted))" /> : <Pencil size={14} color="rgb(var(--text-muted))" />}
                   </button>
-                  <button onClick={() => deleteNote(active.id)} className="icon-btn" style={iconBtnStyle} title="Delete">
+                  <button onClick={() => handleDeleteNote(active.id)} className="icon-btn" style={iconBtnStyle} title="Delete">
                     <Trash2 size={14} color="rgb(var(--danger))" />
                   </button>
                 </div>

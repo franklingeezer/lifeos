@@ -1,65 +1,25 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Sun, Moon, StickyNote, Sparkles,
   Circle, CheckCircle2, FolderKanban, ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { toLocalISODate } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
-
-type Task = {
-  id: string;
-  title: string;
-  tag: string | null;
-  priority: "low" | "med" | "high";
-  done: boolean;
-  status: "todo" | "in_progress" | "done";
-};
-
-type HabitRow = { name: string; streak: number; pct: number };
-type Note = { id: string; title: string };
-type ProjectRow = { name: string; progress: number };
+import { useDashboardData, type DashboardTask } from "@/hooks/useDashboardData";
 
 const THEME_KEY = "lifeos-theme";
-const DEFAULT_NAME = "Chief";
 const WEEK_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
 const isoDate = toLocalISODate;
 
-function computeStreak(dates: string[]): number {
-  if (dates.length === 0) return 0;
-  const set = new Set(dates);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let cursor = new Date(today);
-  if (!set.has(isoDate(cursor))) {
-    cursor.setDate(cursor.getDate() - 1);
-    if (!set.has(isoDate(cursor))) return 0;
-  }
-  let streak = 0;
-  while (set.has(isoDate(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
-
 export default function Dashboard() {
-  const supabase = useMemo(() => createClient(), []);
+  const { data, isLoading, toggleTask } = useDashboardData();
+
   const [theme, setThemeState] = useState<"dark" | "light">("dark");
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(new Date());
-  const [displayName, setDisplayName] = useState(DEFAULT_NAME);
-  const [habits, setHabits] = useState<HabitRow[]>([]);
-  const [netThisMonth, setNetThisMonth] = useState(0);
-  const [briefTeaser, setBriefTeaser] = useState<string | null>(null);
-  const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [eventDays, setEventDays] = useState<Set<string>>(new Set());
-  const [recentNotes, setRecentNotes] = useState<Note[]>([]);
 
   useEffect(() => {
     const savedTheme = typeof window !== "undefined" ? localStorage.getItem(THEME_KEY) : null;
@@ -78,92 +38,15 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, []);
 
-  const loadTasks = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("tasks")
-      .select("id, title, tag, priority, done, status")
-      .order("position", { ascending: true })
-      .order("created_at", { ascending: true });
-    if (!error && data) setTasks(data as Task[]);
-    setLoading(false);
-  }, [supabase]);
-
-  const loadRest = useCallback(async () => {
-    const today = new Date();
-    const monthStart = isoDate(new Date(today.getFullYear(), today.getMonth(), 1));
-    const monthEndExclusive = isoDate(new Date(today.getFullYear(), today.getMonth() + 1, 1));
-    const weekStart = new Date(today);
-    const dayOfWeek = (today.getDay() + 6) % 7; // 0 = Monday
-    weekStart.setDate(today.getDate() - dayOfWeek);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-
-    const [
-      { data: settingsRow },
-      { data: habitsData },
-      { data: financeRows },
-      { data: briefRow },
-      { data: projectsData },
-      { data: eventsData },
-      { data: notesData },
-    ] = await Promise.all([
-      supabase.from("app_settings").select("display_name").eq("id", 1).maybeSingle(),
-      supabase.from("habits").select("id, name"),
-      supabase.from("finance_transactions").select("type, amount_bdt").gte("occurred_on", monthStart).lt("occurred_on", monthEndExclusive),
-      supabase.from("ai_briefs").select("content").eq("brief_date", isoDate(today)).maybeSingle(),
-      supabase.from("projects").select("name, progress").eq("status", "active").order("progress", { ascending: false }).limit(4),
-      supabase.from("events").select("date").gte("date", isoDate(weekStart)).lte("date", isoDate(weekEnd)),
-      supabase.from("notes").select("id, title").order("updated_at", { ascending: false }).limit(3),
-    ]);
-
-    if (settingsRow?.display_name) setDisplayName(settingsRow.display_name);
-
-    if (habitsData && habitsData.length > 0) {
-      const habitIds = habitsData.map((h) => h.id);
-      const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 60);
-      const { data: logs } = await supabase
-        .from("habit_logs")
-        .select("habit_id, date")
-        .in("habit_id", habitIds)
-        .eq("completed", true)
-        .gte("date", isoDate(cutoff));
-      const d30 = new Date(today); d30.setDate(d30.getDate() - 29);
-      setHabits(
-        habitsData.map((h) => {
-          const allDates = (logs ?? []).filter((l) => l.habit_id === h.id).map((l) => l.date);
-          const in30 = allDates.filter((d) => d >= isoDate(d30));
-          return { name: h.name, streak: computeStreak(allDates), pct: in30.length / 30 };
-        })
-      );
-    }
-
-    const net = (financeRows ?? []).reduce((sum, t) => {
-      if (t.type === "income") return sum + Number(t.amount_bdt);
-      if (t.type === "expense" || t.type === "savings" || t.type === "investment") return sum - Number(t.amount_bdt);
-      return sum;
-    }, 0);
-    setNetThisMonth(net);
-
-    if (briefRow?.content) {
-      const firstBullet = briefRow.content.split("\n").find((l: string) => l.trim().startsWith("•"));
-      setBriefTeaser(firstBullet?.replace(/^•\s*/, "") ?? briefRow.content.split("\n")[0]);
-    }
-
-    setProjects((projectsData ?? []).map((p) => ({ name: p.name, progress: p.progress ?? 0 })));
-    setEventDays(new Set((eventsData ?? []).map((e) => e.date as string)));
-    setRecentNotes((notesData ?? []) as Note[]);
-  }, [supabase]);
-
-  useEffect(() => {
-    loadTasks();
-    loadRest();
-  }, [loadTasks, loadRest]);
-
-  const toggle = async (id: string, done: boolean) => {
-    const nextStatus = done ? "todo" : "done";
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !done, status: nextStatus } : t)));
-    await supabase.from("tasks").update({ status: nextStatus }).eq("id", id);
-  };
+  // Data from the hook, with safe defaults while loading.
+  const tasks = data?.tasks ?? [];
+  const displayName = data?.displayName ?? "Chief";
+  const habits = data?.habits ?? [];
+  const netThisMonth = data?.netThisMonth ?? 0;
+  const briefTeaser = data?.briefTeaser ?? null;
+  const projects = data?.projects ?? [];
+  const eventDays = useMemo(() => new Set(data?.eventDays ?? []), [data?.eventDays]);
+  const recentNotes = data?.recentNotes ?? [];
 
   const greeting = useMemo(() => {
     const h = now.getHours();
@@ -181,7 +64,7 @@ export default function Dashboard() {
   const taskPct = tasks.length ? doneCount / tasks.length : 0;
   const habitAvg = habits.length ? habits.reduce((a, h) => a + Math.min(h.pct, 1), 0) / habits.length : 0;
   const systemLoad = Math.round(((taskPct + habitAvg) / 2) * 100);
-  const priorityColor = (p: Task["priority"]) =>
+  const priorityColor = (p: DashboardTask["priority"]) =>
     p === "high" ? "rgb(var(--danger))" : p === "med" ? "rgb(var(--gold))" : "rgb(var(--text-muted))";
 
   const ringCirc = 2 * Math.PI * 26;
@@ -263,18 +146,18 @@ export default function Dashboard() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>Today's priorities</div>
               <div style={{ fontSize: 12, color: "rgb(var(--text-muted))" }} className="font-mono">
-                {loading ? "…" : `${doneCount}/${tasks.length}`}
+                {isLoading ? "…" : `${doneCount}/${tasks.length}`}
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {loading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading tasks…</div>}
-              {!loading && tasks.length === 0 && (
+              {isLoading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading tasks…</div>}
+              {!isLoading && tasks.length === 0 && (
                 <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>No tasks yet.</div>
               )}
               {tasks.map((t) => (
                 <div
                   key={t.id}
-                  onClick={() => toggle(t.id, t.done)}
+                  onClick={() => toggleTask(t.id, t.done)}
                   style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 8px", borderRadius: 10, cursor: "pointer", opacity: t.done ? 0.5 : 1 }}
                 >
                   {t.done ? <CheckCircle2 size={17} color="rgb(var(--accent))" /> : <Circle size={17} color="rgb(var(--text-muted))" />}

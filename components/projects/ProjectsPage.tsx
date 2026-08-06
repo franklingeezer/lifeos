@@ -1,26 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState } from "react";
 import { Plus, Search, X, Github, ExternalLink } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
-
-type Status = "active" | "paused" | "done" | "archived";
-type Priority = "low" | "med" | "high";
-
-type Project = {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string | null;
-  status: Status;
-  priority: Priority;
-  start_date: string | null;
-  deadline: string | null;
-  progress: number;
-  github_repo: string | null;
-  live_demo: string | null;
-};
+import { useProjects, type Status, type Priority } from "@/hooks/useProjects";
 
 const STATUS_META: Record<Status, { label: string; bg: string; text: string }> = {
   active: { label: "Active", bg: "rgb(var(--accent))", text: "rgb(var(--bg))" },
@@ -38,24 +21,12 @@ const emptyForm = {
 };
 
 export default function ProjectsPage() {
-  const supabase = useMemo(() => createClient(), []);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { projects, isLoading, createProject, updateProject, deleteProject } = useProjects();
+
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-
-  const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("projects")
-      .select("id, name, description, category, status, priority, start_date, deadline, progress, github_repo, live_demo")
-      .order("created_at", { ascending: true });
-    if (!error && data) setProjects(data as Project[]);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => { load(); }, [load]);
 
   const editingProject = projects.find((p) => p.id === editingId) ?? null;
 
@@ -65,9 +36,9 @@ export default function ProjectsPage() {
     return p.name.toLowerCase().includes(q) || (p.category ?? "").toLowerCase().includes(q);
   });
 
-  const createProject = async () => {
+  const handleCreateProject = async () => {
     if (!form.name.trim()) return;
-    const payload = {
+    await createProject({
       name: form.name.trim(),
       description: form.description.trim() || null,
       category: form.category.trim() || null,
@@ -77,22 +48,14 @@ export default function ProjectsPage() {
       deadline: form.deadline || null,
       github_repo: form.github_repo.trim() || null,
       live_demo: form.live_demo.trim() || null,
-    };
-    const { data, error } = await supabase.from("projects").insert(payload).select().single();
-    if (!error && data) setProjects((prev) => [...prev, data as Project]);
+    });
     setForm(emptyForm);
     setShowCreate(false);
   };
 
-  const updateProject = async (id: string, patch: Partial<Project>) => {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-    await supabase.from("projects").update(patch).eq("id", id);
-  };
-
-  const deleteProject = async (id: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
+  const handleDeleteProject = (id: string) => {
     if (editingId === id) setEditingId(null);
-    await supabase.from("projects").delete().eq("id", id);
+    deleteProject(id);
   };
 
   return (
@@ -132,9 +95,9 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {loading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading projects…</div>}
+        {isLoading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading projects…</div>}
 
-        {!loading && (
+        {!isLoading && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
             {filtered.map((p) => {
               const meta = STATUS_META[p.status];
@@ -244,7 +207,7 @@ export default function ProjectsPage() {
               <input value={form.live_demo} onChange={(e) => setForm({ ...form, live_demo: e.target.value })} placeholder="https://…" style={inputStyle} />
             </FormField>
 
-            <button onClick={createProject} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
+            <button onClick={handleCreateProject} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
               Create project
             </button>
           </div>
@@ -301,7 +264,7 @@ export default function ProjectsPage() {
           </FormField>
 
           <button
-            onClick={() => deleteProject(editingProject.id)}
+            onClick={() => handleDeleteProject(editingProject.id)}
             style={{ width: "100%", marginTop: 12, padding: "10px", borderRadius: 10, background: "rgb(var(--danger) / 0.12)", color: "rgb(var(--danger))", fontWeight: 600, fontSize: 13, border: "1px solid rgb(var(--danger) / 0.3)", cursor: "pointer" }}
           >
             Delete project

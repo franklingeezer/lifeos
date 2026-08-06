@@ -1,21 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState } from "react";
 import { Plus, X, Check, Trash2, ArrowDownLeft, ArrowUpRight } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { todayISO } from "@/lib/date";
-
-type Direction = "owed_to_me" | "i_owe";
-
-type Debt = {
-  id: string;
-  person_name: string;
-  direction: Direction;
-  amount_bdt: number;
-  note: string | null;
-  due_date: string | null;
-  settled: boolean;
-};
+import { useDebts, type Debt, type Direction } from "@/hooks/useDebts";
 
 const emptyForm = {
   person_name: "",
@@ -29,25 +17,11 @@ const bdt = (n: number) =>
   new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 }).format(Math.round(n));
 
 export default function DebtsPanel() {
-  const supabase = useMemo(() => createClient(), []);
-  const [debts, setDebts] = useState<Debt[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { debts, isLoading, createDebt, toggleSettled, deleteDebt } = useDebts();
+
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [showSettled, setShowSettled] = useState(false);
-
-  const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("finance_debts")
-      .select("id, person_name, direction, amount_bdt, note, due_date, settled")
-      .order("settled", { ascending: true })
-      .order("due_date", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: false });
-    if (!error && data) setDebts(data as Debt[]);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => { load(); }, [load]);
 
   const visible = debts.filter((d) => showSettled || !d.settled);
   const owedToMe = visible.filter((d) => d.direction === "owed_to_me");
@@ -56,31 +30,19 @@ export default function DebtsPanel() {
   const totalOwedToMe = debts.filter((d) => !d.settled && d.direction === "owed_to_me").reduce((s, d) => s + Number(d.amount_bdt), 0);
   const totalIOwe = debts.filter((d) => !d.settled && d.direction === "i_owe").reduce((s, d) => s + Number(d.amount_bdt), 0);
 
-  const createDebt = async () => {
+  const handleCreateDebt = async () => {
     const amount = parseFloat(form.amount_bdt);
     if (!form.person_name.trim() || !amount || amount <= 0) return;
-    const payload = {
+    await createDebt({
       person_name: form.person_name.trim(),
       direction: form.direction,
       amount_bdt: amount,
       note: form.note.trim() || null,
       due_date: form.due_date || null,
       settled: false,
-    };
-    const { data, error } = await supabase.from("finance_debts").insert(payload).select().single();
-    if (!error && data) setDebts((prev) => [data as Debt, ...prev]);
+    });
     setForm(emptyForm);
     setShowCreate(false);
-  };
-
-  const toggleSettled = async (d: Debt) => {
-    setDebts((prev) => prev.map((x) => (x.id === d.id ? { ...x, settled: !x.settled } : x)));
-    await supabase.from("finance_debts").update({ settled: !d.settled }).eq("id", d.id);
-  };
-
-  const deleteDebt = async (id: string) => {
-    setDebts((prev) => prev.filter((d) => d.id !== id));
-    await supabase.from("finance_debts").delete().eq("id", id);
   };
 
   return (
@@ -123,9 +85,9 @@ export default function DebtsPanel() {
         </div>
       </div>
 
-      {loading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading…</div>}
+      {isLoading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading…</div>}
 
-      {!loading && (
+      {!isLoading && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
           <DebtColumn title="Owed to me" items={owedToMe} accentColor="rgb(var(--accent))" onToggle={toggleSettled} onDelete={deleteDebt} />
           <DebtColumn title="I owe" items={iOwe} accentColor="rgb(var(--danger))" onToggle={toggleSettled} onDelete={deleteDebt} />
@@ -158,7 +120,7 @@ export default function DebtsPanel() {
               <textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
             </FormField>
 
-            <button onClick={createDebt} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
+            <button onClick={handleCreateDebt} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
               Add
             </button>
           </div>

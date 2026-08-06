@@ -1,23 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Plus, X, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, PiggyBank, LineChart as LineChartIcon } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { createClient } from "@/lib/supabase/client";
-import { todayISO, toLocalISODate } from "@/lib/date";
+import { todayISO } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 import DebtsPanel from "@/components/finance/DebtsPanel";
-
-type TxType = "income" | "expense" | "savings" | "investment";
-
-type Transaction = {
-  id: string;
-  type: TxType;
-  category: string | null;
-  amount_bdt: number;
-  note: string | null;
-  occurred_on: string;
-};
+import { useFinance, type TxType } from "@/hooks/useFinance";
 
 const TYPE_META: Record<TxType, { label: string; color: string }> = {
   income: { label: "Income", color: "rgb(var(--accent))" },
@@ -41,32 +30,19 @@ const monthLabel = (year: number, month: number) =>
   new Date(year, month, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
 export default function FinancePage() {
-  const supabase = useMemo(() => createClient(), []);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
+
+  const { transactions, isLoading, createTransaction, updateTransaction, deleteTransaction } = useFinance(
+    cursor.year,
+    cursor.month
+  );
+
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const start = toLocalISODate(new Date(cursor.year, cursor.month, 1));
-    const end = toLocalISODate(new Date(cursor.year, cursor.month + 1, 0));
-    const { data, error } = await supabase
-      .from("finance_transactions")
-      .select("id, type, category, amount_bdt, note, occurred_on")
-      .gte("occurred_on", start)
-      .lte("occurred_on", end)
-      .order("occurred_on", { ascending: false });
-    if (!error && data) setTransactions(data as Transaction[]);
-    setLoading(false);
-  }, [supabase, cursor]);
-
-  useEffect(() => { load(); }, [load]);
 
   const editingTx = transactions.find((t) => t.id === editingId) ?? null;
 
@@ -92,37 +68,23 @@ export default function FinancePage() {
 
   const pieColors = ["rgb(var(--accent))", "rgb(var(--gold))", "rgb(var(--danger))", "#8B7FD6", "#5FA8D3", "#C98A5B", "#7FB88A"];
 
-  const createTx = async () => {
+  const handleCreateTx = async () => {
     const amount = parseFloat(form.amount_bdt);
     if (!amount || amount <= 0) return;
-    const payload = {
+    await createTransaction({
       type: form.type,
       category: form.category.trim() || null,
       amount_bdt: amount,
       note: form.note.trim() || null,
       occurred_on: form.occurred_on,
-    };
-    const { data, error } = await supabase.from("finance_transactions").insert(payload).select().single();
-    if (!error && data) {
-      const tx = data as Transaction;
-      const d = new Date(tx.occurred_on);
-      if (d.getFullYear() === cursor.year && d.getMonth() === cursor.month) {
-        setTransactions((prev) => [tx, ...prev]);
-      }
-    }
+    });
     setForm(emptyForm);
     setShowCreate(false);
   };
 
-  const updateTx = async (id: string, patch: Partial<Transaction>) => {
-    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-    await supabase.from("finance_transactions").update(patch).eq("id", id);
-  };
-
-  const deleteTx = async (id: string) => {
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+  const handleDeleteTx = (id: string) => {
     if (editingId === id) setEditingId(null);
-    await supabase.from("finance_transactions").delete().eq("id", id);
+    deleteTransaction(id);
   };
 
   const shiftMonth = (delta: number) => {
@@ -179,11 +141,11 @@ export default function FinancePage() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
           {/* Transaction list */}
           <div style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, overflow: "hidden" }}>
-            {loading && <div style={{ padding: 16, fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading transactions…</div>}
-            {!loading && transactions.length === 0 && (
+            {isLoading && <div style={{ padding: 16, fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading transactions…</div>}
+            {!isLoading && transactions.length === 0 && (
               <div style={{ padding: 16, fontSize: 13, color: "rgb(var(--text-muted))" }}>No transactions this month.</div>
             )}
-            {!loading && transactions.map((t) => {
+            {!isLoading && transactions.map((t) => {
               const meta = TYPE_META[t.type];
               const sign = t.type === "income" ? "+" : "−";
               return (
@@ -284,7 +246,7 @@ export default function FinancePage() {
               <textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
             </FormField>
 
-            <button onClick={createTx} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
+            <button onClick={handleCreateTx} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
               Add transaction
             </button>
           </div>
@@ -300,7 +262,7 @@ export default function FinancePage() {
           </div>
 
           <FormField label="Type">
-            <select value={editingTx.type} onChange={(e) => updateTx(editingTx.id, { type: e.target.value as TxType })} style={inputStyle}>
+            <select value={editingTx.type} onChange={(e) => updateTransaction(editingTx.id, { type: e.target.value as TxType })} style={inputStyle}>
               <option value="expense">Expense</option>
               <option value="income">Income</option>
               <option value="savings">Savings</option>
@@ -308,20 +270,20 @@ export default function FinancePage() {
             </select>
           </FormField>
           <FormField label="Amount (৳)">
-            <input type="number" min="0" step="0.01" defaultValue={editingTx.amount_bdt} onBlur={(e) => updateTx(editingTx.id, { amount_bdt: parseFloat(e.target.value) || 0 })} style={inputStyle} />
+            <input type="number" min="0" step="0.01" defaultValue={editingTx.amount_bdt} onBlur={(e) => updateTransaction(editingTx.id, { amount_bdt: parseFloat(e.target.value) || 0 })} style={inputStyle} />
           </FormField>
           <FormField label="Category">
-            <input defaultValue={editingTx.category ?? ""} onBlur={(e) => updateTx(editingTx.id, { category: e.target.value || null })} style={inputStyle} />
+            <input defaultValue={editingTx.category ?? ""} onBlur={(e) => updateTransaction(editingTx.id, { category: e.target.value || null })} style={inputStyle} />
           </FormField>
           <FormField label="Date">
-            <input type="date" defaultValue={editingTx.occurred_on} onChange={(e) => updateTx(editingTx.id, { occurred_on: e.target.value })} style={inputStyle} />
+            <input type="date" defaultValue={editingTx.occurred_on} onChange={(e) => updateTransaction(editingTx.id, { occurred_on: e.target.value })} style={inputStyle} />
           </FormField>
           <FormField label="Note">
-            <textarea defaultValue={editingTx.note ?? ""} onBlur={(e) => updateTx(editingTx.id, { note: e.target.value || null })} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+            <textarea defaultValue={editingTx.note ?? ""} onBlur={(e) => updateTransaction(editingTx.id, { note: e.target.value || null })} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
           </FormField>
 
           <button
-            onClick={() => deleteTx(editingTx.id)}
+            onClick={() => handleDeleteTx(editingTx.id)}
             style={{ width: "100%", marginTop: 12, padding: "10px", borderRadius: 10, background: "rgb(var(--danger) / 0.12)", color: "rgb(var(--danger))", fontWeight: 600, fontSize: 13, border: "1px solid rgb(var(--danger) / 0.3)", cursor: "pointer" }}
           >
             Delete transaction

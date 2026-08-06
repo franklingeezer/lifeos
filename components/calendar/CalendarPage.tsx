@@ -1,13 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Plus, X, CheckSquare, FolderKanban } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
-
-type Event = { id: string; title: string; date: string; color: string; all_day: boolean };
-type TaskDue = { id: string; title: string; due_date: string };
-type ProjectDeadline = { id: string; name: string; deadline: string };
+import { useCalendar, type Event } from "@/hooks/useCalendar";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const SWATCHES = ["#5EA8A0", "#D4A857", "#C57B6B", "#6C8EF5", "#9B8AC4"];
@@ -28,12 +24,9 @@ function buildMonthGrid(year: number, month: number): Date[] {
 }
 
 export default function CalendarPage() {
-  const supabase = useMemo(() => createClient(), []);
+  const { events, tasksDue, projectDeadlines, isLoading, createEvent, updateEvent, deleteEvent } = useCalendar();
+
   const [monthDate, setMonthDate] = useState(() => { const d = new Date(); d.setDate(1); return d; });
-  const [events, setEvents] = useState<Event[]>([]);
-  const [tasksDue, setTasksDue] = useState<TaskDue[]>([]);
-  const [projectDeadlines, setProjectDeadlines] = useState<ProjectDeadline[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createDate, setCreateDate] = useState("");
@@ -42,20 +35,6 @@ export default function CalendarPage() {
 
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [viewDayISO, setViewDayISO] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const [{ data: ev }, { data: td }, { data: pd }] = await Promise.all([
-      supabase.from("events").select("id, title, date, color, all_day"),
-      supabase.from("tasks").select("id, title, due_date").not("due_date", "is", null),
-      supabase.from("projects").select("id, name, deadline").not("deadline", "is", null),
-    ]);
-    if (ev) setEvents(ev as Event[]);
-    if (td) setTasksDue(td as TaskDue[]);
-    if (pd) setProjectDeadlines(pd as ProjectDeadline[]);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => { load(); }, [load]);
 
   const today = new Date();
   const todayISO = toISODate(today);
@@ -75,23 +54,15 @@ export default function CalendarPage() {
     setShowCreate(true);
   };
 
-  const createEvent = async () => {
+  const handleCreateEvent = async () => {
     if (!createTitle.trim()) return;
-    const payload = { title: createTitle.trim(), date: createDate, color: createColor, all_day: true };
-    const { data, error } = await supabase.from("events").insert(payload).select().single();
-    if (!error && data) setEvents((prev) => [...prev, data as Event]);
+    await createEvent({ title: createTitle.trim(), date: createDate, color: createColor, all_day: true });
     setShowCreate(false);
   };
 
-  const updateEvent = async (id: string, patch: Partial<Event>) => {
-    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-    await supabase.from("events").update(patch).eq("id", id);
-  };
-
-  const deleteEvent = async (id: string) => {
-    setEvents((prev) => prev.filter((e) => e.id !== id));
+  const handleDeleteEvent = (id: string) => {
     setEditingEvent(null);
-    await supabase.from("events").delete().eq("id", id);
+    deleteEvent(id);
   };
 
   return (
@@ -123,7 +94,7 @@ export default function CalendarPage() {
           </button>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading calendar…</div>
         ) : (
           <div>
@@ -212,7 +183,7 @@ export default function CalendarPage() {
               <X size={16} style={{ cursor: "pointer", color: "rgb(var(--text-muted))" }} onClick={() => setShowCreate(false)} />
             </div>
             <FormField label="Title">
-              <input autoFocus value={createTitle} onChange={(e) => setCreateTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && createEvent()} placeholder="What's happening?" style={inputStyle} />
+              <input autoFocus value={createTitle} onChange={(e) => setCreateTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreateEvent()} placeholder="What's happening?" style={inputStyle} />
             </FormField>
             <FormField label="Date">
               <input type="date" value={createDate} onChange={(e) => setCreateDate(e.target.value)} style={inputStyle} />
@@ -231,7 +202,7 @@ export default function CalendarPage() {
                 ))}
               </div>
             </FormField>
-            <button onClick={createEvent} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
+            <button onClick={handleCreateEvent} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
               Create event
             </button>
           </div>
@@ -267,7 +238,7 @@ export default function CalendarPage() {
               </div>
             </FormField>
             <button
-              onClick={() => deleteEvent(editingEvent.id)}
+              onClick={() => handleDeleteEvent(editingEvent.id)}
               style={{ width: "100%", marginTop: 12, padding: "10px", borderRadius: 10, background: "rgb(var(--danger) / 0.12)", color: "rgb(var(--danger))", fontWeight: 600, fontSize: 13, border: "1px solid rgb(var(--danger) / 0.3)", cursor: "pointer" }}
             >
               Delete event

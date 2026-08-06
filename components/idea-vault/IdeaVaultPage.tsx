@@ -1,22 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, X, Trash2, Search, Star, Lightbulb, Sprout, TrendingUp, CheckCircle2, Archive } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import React, { useState } from "react";
+import { Plus, X, Search, Star, Lightbulb, Sprout, TrendingUp, CheckCircle2, Archive } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
-
-type Status = "spark" | "developing" | "validated" | "archived";
-
-type Idea = {
-  id: string;
-  title: string;
-  description: string | null;
-  status: Status;
-  tags: string[];
-  potential: number;
-  created_at: string;
-  updated_at: string;
-};
+import { useIdeaVault, type Status } from "@/hooks/useIdeaVault";
 
 const emptyForm = {
   title: "",
@@ -36,27 +23,14 @@ const STATUS_META: Record<Status, { label: string; color: string; icon: React.El
 const STATUS_ORDER: Status[] = ["spark", "developing", "validated", "archived"];
 
 export default function IdeaVaultPage() {
-  const supabase = useMemo(() => createClient(), []);
-  const [ideas, setIdeas] = useState<Idea[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { ideas, isLoading, createIdea, updateIdea, deleteIdea } = useIdeaVault();
+
   const [filter, setFilter] = useState<"all" | Status>("all");
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("idea_vault_items")
-      .select("id, title, description, status, tags, potential, created_at, updated_at")
-      .order("created_at", { ascending: false });
-    if (!error && data) setIdeas(data as Idea[]);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => { load(); }, [load]);
 
   const editingIdea = ideas.find((i) => i.id === editingId) ?? null;
 
@@ -77,25 +51,18 @@ export default function IdeaVaultPage() {
     return acc;
   }, {} as Record<Status, number>);
 
-  const createIdea = async () => {
+  const handleCreateIdea = async () => {
     if (!form.title.trim()) return;
     const tags = form.tags.split(",").map((t) => t.trim()).filter(Boolean);
-    const payload = {
+    await createIdea({
       title: form.title.trim(),
       description: form.description.trim() || null,
       status: form.status,
       tags,
       potential: form.potential,
-    };
-    const { data, error } = await supabase.from("idea_vault_items").insert(payload).select().single();
-    if (!error && data) setIdeas((prev) => [data as Idea, ...prev]);
+    });
     setForm(emptyForm);
     setShowCreate(false);
-  };
-
-  const updateIdea = async (id: string, patch: Partial<Idea>) => {
-    setIdeas((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-    await supabase.from("idea_vault_items").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
   };
 
   const requestDelete = (id: string) => {
@@ -104,13 +71,8 @@ export default function IdeaVaultPage() {
       return;
     }
     deleteIdea(id);
-  };
-
-  const deleteIdea = async (id: string) => {
-    setIdeas((prev) => prev.filter((i) => i.id !== id));
     setConfirmingDelete(false);
     if (editingId === id) setEditingId(null);
-    await supabase.from("idea_vault_items").delete().eq("id", id);
   };
 
   return (
@@ -168,15 +130,15 @@ export default function IdeaVaultPage() {
           })}
         </div>
 
-        {loading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading ideas…</div>}
-        {!loading && filtered.length === 0 && (
+        {isLoading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading ideas…</div>}
+        {!isLoading && filtered.length === 0 && (
           <div style={{ fontSize: 13, color: "rgb(var(--text-muted))", padding: 32, textAlign: "center", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16 }}>
             <Lightbulb size={22} style={{ marginBottom: 8, opacity: 0.5 }} />
             <div>{ideas.length === 0 ? "No ideas captured yet. Add your first spark." : "Nothing matches this filter."}</div>
           </div>
         )}
 
-        {!loading && filtered.length > 0 && (
+        {!isLoading && filtered.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
             {filtered.map((idea) => {
               const meta = STATUS_META[idea.status];
@@ -255,7 +217,7 @@ export default function IdeaVaultPage() {
               <input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="comma separated, e.g. automation, side-project" style={inputStyle} />
             </FormField>
 
-            <button onClick={createIdea} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
+            <button onClick={handleCreateIdea} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
               Add idea
             </button>
           </div>

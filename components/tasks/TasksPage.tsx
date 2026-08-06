@@ -1,25 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState } from "react";
 import {
   Plus, Search, LayoutList, Columns3, X, Trash2, Circle, CheckCircle2,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
-
-type Priority = "low" | "med" | "high";
-type Status = "todo" | "in_progress" | "done";
-
-type Subtask = { id: string; title: string; done: boolean; position: number };
-type Task = {
-  id: string;
-  title: string;
-  category: string | null;
-  priority: Priority;
-  status: Status;
-  due_date: string | null;
-  subtasks: Subtask[];
-};
+import { useTasks, type Priority, type Status } from "@/hooks/useTasks";
 
 const COLUMNS: { key: Status; label: string }[] = [
   { key: "todo", label: "To do" },
@@ -31,9 +17,12 @@ const priorityColor = (p: Priority) =>
   p === "high" ? "rgb(var(--danger))" : p === "med" ? "rgb(var(--gold))" : "rgb(var(--text-muted))";
 
 export default function TasksPage() {
-  const supabase = useMemo(() => createClient(), []);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    tasks, isLoading, error,
+    createTask, updateTask, deleteTask, moveTask,
+    addSubtask, toggleSubtask, deleteSubtask,
+  } = useTasks();
+
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -47,26 +36,6 @@ export default function TasksPage() {
 
   const [subtaskInput, setSubtaskInput] = useState("");
 
-  const loadTasks = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("tasks")
-      .select("id, title, category, priority, status, due_date, subtasks(id, title, done, position)")
-      .order("created_at", { ascending: true });
-
-    if (!error && data) {
-      const withSorted = data.map((t: any) => ({
-        ...t,
-        subtasks: (t.subtasks ?? []).sort((a: Subtask, b: Subtask) => a.position - b.position),
-      }));
-      setTasks(withSorted as Task[]);
-    }
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
-
   const editingTask = tasks.find((t) => t.id === editingId) ?? null;
 
   const filtered = tasks.filter((t) => {
@@ -75,20 +44,15 @@ export default function TasksPage() {
     return t.title.toLowerCase().includes(q) || (t.category ?? "").toLowerCase().includes(q);
   });
 
-  // ---- mutations ----
-  const createTask = async () => {
+  // ---- form handlers (the hook owns the actual mutations now) ----
+  const handleCreateTask = async () => {
     if (!newTitle.trim()) return;
-    const payload = {
+    await createTask({
       title: newTitle.trim(),
       category: newCategory.trim() || null,
       priority: newPriority,
       due_date: newDue || null,
-      status: "todo" as Status,
-    };
-    const { data, error } = await supabase.from("tasks").insert(payload).select().single();
-    if (!error && data) {
-      setTasks((prev) => [...prev, { ...data, subtasks: [] } as Task]);
-    }
+    });
     setNewTitle("");
     setNewCategory("");
     setNewPriority("med");
@@ -96,51 +60,15 @@ export default function TasksPage() {
     setShowCreate(false);
   };
 
-  const updateTask = async (id: string, patch: Partial<Task>) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-    await supabase.from("tasks").update(patch).eq("id", id);
-  };
-
-  const deleteTask = async (id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+  const handleDeleteTask = (id: string) => {
     if (editingId === id) setEditingId(null);
-    await supabase.from("tasks").delete().eq("id", id);
+    deleteTask(id);
   };
 
-  const moveTask = (id: string, status: Status) => updateTask(id, { status });
-
-  const addSubtask = async (taskId: string) => {
+  const handleAddSubtask = (taskId: string) => {
     if (!subtaskInput.trim()) return;
-    const position = (tasks.find((t) => t.id === taskId)?.subtasks.length) ?? 0;
-    const { data, error } = await supabase
-      .from("subtasks")
-      .insert({ task_id: taskId, title: subtaskInput.trim(), position })
-      .select()
-      .single();
-    if (!error && data) {
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, subtasks: [...t.subtasks, data as Subtask] } : t))
-      );
-    }
+    addSubtask(taskId, subtaskInput.trim());
     setSubtaskInput("");
-  };
-
-  const toggleSubtask = async (taskId: string, subId: string, done: boolean) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? { ...t, subtasks: t.subtasks.map((s) => (s.id === subId ? { ...s, done: !done } : s)) }
-          : t
-      )
-    );
-    await supabase.from("subtasks").update({ done: !done }).eq("id", subId);
-  };
-
-  const deleteSubtask = async (taskId: string, subId: string) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, subtasks: t.subtasks.filter((s) => s.id !== subId) } : t))
-    );
-    await supabase.from("subtasks").delete().eq("id", subId);
   };
 
   return (
@@ -206,10 +134,15 @@ export default function TasksPage() {
           </div>
         </div>
 
-        {loading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading tasks…</div>}
+        {isLoading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading tasks…</div>}
+        {error && !isLoading && (
+          <div style={{ fontSize: 13, color: "rgb(var(--danger))" }}>
+            Couldn't load tasks — check your connection and try refreshing.
+          </div>
+        )}
 
         {/* Kanban view */}
-        {!loading && view === "kanban" && (
+        {!isLoading && view === "kanban" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
             {COLUMNS.map((col) => {
               const colTasks = filtered.filter((t) => t.status === col.key);
@@ -273,7 +206,7 @@ export default function TasksPage() {
         )}
 
         {/* List view */}
-        {!loading && view === "list" && (
+        {!isLoading && view === "list" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {filtered.map((t) => (
               <div
@@ -301,7 +234,7 @@ export default function TasksPage() {
                 {t.category && <span style={{ fontSize: 11, color: "rgb(var(--text-muted))", minWidth: 90, textAlign: "right" }}>{t.category}</span>}
                 <button
                   className="icon-btn"
-                  onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}
+                  onClick={(e) => { e.stopPropagation(); handleDeleteTask(t.id); }}
                   style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4, borderRadius: 6, display: "flex" }}
                 >
                   <Trash2 size={14} color="rgb(var(--text-muted))" />
@@ -330,7 +263,7 @@ export default function TasksPage() {
 
             <FormField label="Title">
               <input autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && createTask()}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateTask()}
                 placeholder="What needs doing?" style={inputStyle} />
             </FormField>
             <FormField label="Category">
@@ -348,7 +281,7 @@ export default function TasksPage() {
             </FormField>
 
             <button
-              onClick={createTask}
+              onClick={handleCreateTask}
               style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}
             >
               Create task
@@ -431,12 +364,12 @@ export default function TasksPage() {
             <input
               value={subtaskInput}
               onChange={(e) => setSubtaskInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addSubtask(editingTask.id)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddSubtask(editingTask.id)}
               placeholder="Add subtask…"
               style={{ ...inputStyle, flex: 1 }}
             />
             <button
-              onClick={() => addSubtask(editingTask.id)}
+              onClick={() => handleAddSubtask(editingTask.id)}
               style={{ padding: "0 12px", borderRadius: 8, background: "rgb(var(--surface-2))", border: "1px solid rgb(var(--border))", color: "rgb(var(--text))", cursor: "pointer" }}
             >
               <Plus size={14} />
@@ -444,7 +377,7 @@ export default function TasksPage() {
           </div>
 
           <button
-            onClick={() => deleteTask(editingTask.id)}
+            onClick={() => handleDeleteTask(editingTask.id)}
             style={{
               width: "100%", marginTop: 24, padding: "10px", borderRadius: 10, background: "rgb(var(--danger) / 0.12)",
               color: "rgb(var(--danger))", fontWeight: 600, fontSize: 13, border: "1px solid rgb(var(--danger) / 0.3)", cursor: "pointer",

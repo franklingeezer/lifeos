@@ -1,13 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Plus, X, Flame, Trash2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { toLocalISODate } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
-
-type Habit = { id: string; name: string; color: string };
-type HabitLog = { id: string; habit_id: string; date: string; completed: boolean };
+import { useHabits } from "@/hooks/useHabits";
 
 const SWATCHES = ["#5EA8A0", "#D4A857", "#C57B6B", "#6C8EF5", "#9B8AC4"];
 const GRID_DAYS = 35;
@@ -51,62 +48,22 @@ function longestStreak(dates: Set<string>): number {
 }
 
 export default function HabitsPage() {
-  const supabase = useMemo(() => createClient(), []);
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [logs, setLogs] = useState<HabitLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { habits, logs, isLoading, toggleDay, createHabit, deleteHabit } = useHabits();
+
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(SWATCHES[0]);
 
   const days = useMemo(() => lastNDays(GRID_DAYS), []);
 
-  const load = useCallback(async () => {
-    const [{ data: h }, { data: l }] = await Promise.all([
-      supabase.from("habits").select("id, name, color").order("created_at", { ascending: true }),
-      supabase.from("habit_logs").select("id, habit_id, date, completed").eq("completed", true),
-    ]);
-    if (h) setHabits(h as Habit[]);
-    if (l) setLogs(l as HabitLog[]);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => { load(); }, [load]);
-
   const datesFor = (habitId: string) => new Set(logs.filter((l) => l.habit_id === habitId).map((l) => l.date));
 
-  const toggleDay = async (habitId: string, date: string) => {
-    if (date > todayISO) return; // no marking the future
-    const isCompleted = logs.some((l) => l.habit_id === habitId && l.date === date);
-    if (isCompleted) {
-      setLogs((prev) => prev.filter((l) => !(l.habit_id === habitId && l.date === date)));
-      await supabase.from("habit_logs").delete().eq("habit_id", habitId).eq("date", date);
-    } else {
-      setLogs((prev) => [...prev, { id: `optimistic-${habitId}-${date}`, habit_id: habitId, date, completed: true }]);
-      const { data, error } = await supabase
-        .from("habit_logs")
-        .upsert({ habit_id: habitId, date, completed: true }, { onConflict: "habit_id,date" })
-        .select()
-        .single();
-      if (!error && data) {
-        setLogs((prev) => prev.map((l) => (l.id === `optimistic-${habitId}-${date}` ? (data as HabitLog) : l)));
-      }
-    }
-  };
-
-  const createHabit = async () => {
+  const handleCreateHabit = async () => {
     if (!newName.trim()) return;
-    const { data, error } = await supabase.from("habits").insert({ name: newName.trim(), color: newColor }).select().single();
-    if (!error && data) setHabits((prev) => [...prev, data as Habit]);
+    await createHabit(newName.trim(), newColor);
     setNewName("");
     setNewColor(SWATCHES[0]);
     setShowCreate(false);
-  };
-
-  const deleteHabit = async (id: string) => {
-    setHabits((prev) => prev.filter((h) => h.id !== id));
-    setLogs((prev) => prev.filter((l) => l.habit_id !== id));
-    await supabase.from("habits").delete().eq("id", id);
   };
 
   return (
@@ -131,8 +88,8 @@ export default function HabitsPage() {
           </button>
         </div>
 
-        {loading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading habits…</div>}
-        {!loading && habits.length === 0 && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>No habits yet — add your first one.</div>}
+        {isLoading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading habits…</div>}
+        {!isLoading && habits.length === 0 && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>No habits yet — add your first one.</div>}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {habits.map((h) => {
@@ -200,7 +157,7 @@ export default function HabitsPage() {
               <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))", marginBottom: 5 }}>Name</div>
               <input
                 autoFocus value={newName} onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && createHabit()}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateHabit()}
                 placeholder="e.g. Coding"
                 style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "rgb(var(--surface-2))", border: "1px solid rgb(var(--border))", color: "rgb(var(--text))", fontSize: 13, outline: "none" }}
               />
@@ -213,7 +170,7 @@ export default function HabitsPage() {
                 ))}
               </div>
             </div>
-            <button onClick={createHabit} style={{ width: "100%", padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
+            <button onClick={handleCreateHabit} style={{ width: "100%", padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>
               Create habit
             </button>
           </div>

@@ -1,24 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState } from "react";
 import { Plus, X, Search, ExternalLink, Award, Clock } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
-
-type Status = "not_started" | "in_progress" | "completed";
-
-type LearningItem = {
-  id: string;
-  title: string;
-  category: string | null;
-  status: Status;
-  progress: number;
-  hours_studied: number;
-  resource_url: string | null;
-  notes: string | null;
-  quiz_score: number | null;
-  has_certificate: boolean;
-};
+import { useLearning, type Status } from "@/hooks/useLearning";
 
 const STATUS_META: Record<Status, { label: string; bg: string; text: string }> = {
   not_started: { label: "Not started", bg: "rgb(var(--surface-2))", text: "rgb(var(--text-muted))" },
@@ -32,25 +17,13 @@ const emptyForm = {
 };
 
 export default function LearningPage() {
-  const supabase = useMemo(() => createClient(), []);
-  const [items, setItems] = useState<LearningItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { items, isLoading, createItem, updateItem, deleteItem } = useLearning();
+
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("learning_items")
-      .select("id, title, category, status, progress, hours_studied, resource_url, notes, quiz_score, has_certificate")
-      .order("created_at", { ascending: false });
-    if (!error && data) setItems(data as LearningItem[]);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => { load(); }, [load]);
 
   const editing = items.find((i) => i.id === editingId) ?? null;
   const categories = Array.from(new Set(items.map((i) => i.category).filter(Boolean))) as string[];
@@ -65,9 +38,9 @@ export default function LearningPage() {
   const totalHours = items.reduce((a, i) => a + Number(i.hours_studied), 0);
   const completedCount = items.filter((i) => i.status === "completed").length;
 
-  const createItem = async () => {
+  const handleCreateItem = async () => {
     if (!form.title.trim()) return;
-    const payload = {
+    await createItem({
       title: form.title.trim(),
       category: form.category.trim() || null,
       status: form.status,
@@ -77,22 +50,14 @@ export default function LearningPage() {
       notes: form.notes.trim() || null,
       quiz_score: form.quiz_score ? parseFloat(form.quiz_score) : null,
       has_certificate: form.has_certificate,
-    };
-    const { data, error } = await supabase.from("learning_items").insert(payload).select().single();
-    if (!error && data) setItems((prev) => [data as LearningItem, ...prev]);
+    });
     setForm(emptyForm);
     setShowCreate(false);
   };
 
-  const updateItem = async (id: string, patch: Partial<LearningItem>) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-    await supabase.from("learning_items").update(patch).eq("id", id);
-  };
-
-  const deleteItem = async (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+  const handleDeleteItem = (id: string) => {
     if (editingId === id) setEditingId(null);
-    await supabase.from("learning_items").delete().eq("id", id);
+    deleteItem(id);
   };
 
   return (
@@ -129,7 +94,7 @@ export default function LearningPage() {
           {categories.map((c) => <FilterPill key={c} label={c} active={categoryFilter === c} onClick={() => setCategoryFilter(c)} />)}
         </div>
 
-        {loading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading…</div>}
+        {isLoading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading…</div>}
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
           {filtered.map((item) => {
@@ -166,7 +131,7 @@ export default function LearningPage() {
               </div>
             );
           })}
-          {!loading && filtered.length === 0 && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Nothing here.</div>}
+          {!isLoading && filtered.length === 0 && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Nothing here.</div>}
         </div>
       </div>
 
@@ -199,7 +164,7 @@ export default function LearningPage() {
                 </div>
               </Field>
             </div>
-            <button onClick={createItem} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>Create</button>
+            <button onClick={handleCreateItem} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}>Create</button>
           </div>
         </div>
       )}
@@ -233,7 +198,7 @@ export default function LearningPage() {
               <input type="checkbox" checked={editing.has_certificate} readOnly /> Earned
             </div>
           </Field>
-          <button onClick={() => deleteItem(editing.id)} style={{ width: "100%", marginTop: 12, padding: "10px", borderRadius: 10, background: "rgb(var(--danger) / 0.12)", color: "rgb(var(--danger))", fontWeight: 600, fontSize: 13, border: "1px solid rgb(var(--danger) / 0.3)", cursor: "pointer" }}>Delete</button>
+          <button onClick={() => handleDeleteItem(editing.id)} style={{ width: "100%", marginTop: 12, padding: "10px", borderRadius: 10, background: "rgb(var(--danger) / 0.12)", color: "rgb(var(--danger))", fontWeight: 600, fontSize: 13, border: "1px solid rgb(var(--danger) / 0.3)", cursor: "pointer" }}>Delete</button>
         </div>
       )}
     </div>

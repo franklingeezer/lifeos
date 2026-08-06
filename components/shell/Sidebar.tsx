@@ -2,12 +2,13 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutGrid, FolderKanban, CheckSquare, Calendar, StickyNote, BookOpen,
   Flame, Wallet, Image as ImageIcon, GraduationCap, Lightbulb, Bot,
-  BarChart3, Settings, ChevronsLeft, ChevronsRight,
+  BarChart3, Settings, ChevronsLeft, ChevronsRight, LogOut,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
   { icon: LayoutGrid, label: "Dashboard", href: "/" },
@@ -29,6 +30,14 @@ const NAV = [
 export default function Sidebar() {
   const [expanded, setExpanded] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <div
@@ -80,6 +89,16 @@ export default function Sidebar() {
             <div key={item.label} title="Coming in a later phase">{content}</div>
           );
         })}
+      </div>
+
+      <div
+        className="lifeos-navbtn"
+        onClick={handleSignOut}
+        title="Sign out"
+        style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 10, cursor: "pointer", color: "rgb(var(--text-muted))" }}
+      >
+        <LogOut size={17} strokeWidth={1.7} />
+        {expanded && <span style={{ fontSize: 13 }}>Sign out</span>}
       </div>
 
       <div

@@ -1,34 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { Upload, X, Trash2, Search, FileText, Film, ImageIcon, File as FileIcon, Download } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
-
-type FileKind = "image" | "video" | "document" | "other";
-
-type MediaItem = {
-  id: string;
-  storage_path: string;
-  file_name: string;
-  file_type: FileKind;
-  mime_type: string | null;
-  size_bytes: number | null;
-  caption: string | null;
-  tags: string[];
-  created_at: string;
-  url?: string;
-};
-
-const BUCKET = "media";
-const SIGNED_URL_TTL = 60 * 60; // 1 hour
-
-const kindFromMime = (mime: string): FileKind => {
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime === "application/pdf" || mime.startsWith("text/") || mime.includes("document")) return "document";
-  return "other";
-};
+import { useMediaVault, type MediaItem, type FileKind } from "@/hooks/useMediaVault";
 
 const formatSize = (bytes: number | null) => {
   if (!bytes) return "";
@@ -45,11 +20,9 @@ const KIND_ICON: Record<FileKind, React.ElementType> = {
 };
 
 export default function MediaVaultPage() {
-  const supabase = useMemo(() => createClient(), []);
+  const { items, isLoading, uploadFiles, deleteItem, updateCaption, renameFile } = useMediaVault();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [items, setItems] = useState<MediaItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [filter, setFilter] = useState<"all" | FileKind>("all");
   const [search, setSearch] = useState("");
@@ -57,32 +30,6 @@ export default function MediaVaultPage() {
   const [pendingTags, setPendingTags] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("media_items")
-      .select("id, storage_path, file_name, file_type, mime_type, size_bytes, caption, tags, created_at")
-      .order("created_at", { ascending: false });
-
-    if (error || !data) {
-      setLoading(false);
-      return;
-    }
-
-    const withUrls = await Promise.all(
-      (data as MediaItem[]).map(async (item) => {
-        const { data: signed } = await supabase.storage
-          .from(BUCKET)
-          .createSignedUrl(item.storage_path, SIGNED_URL_TTL);
-        return { ...item, url: signed?.signedUrl };
-      })
-    );
-    setItems(withUrls);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => { load(); }, [load]);
 
   const filtered = items.filter((item) => {
     if (filter !== "all" && item.file_type !== filter) return false;
@@ -101,39 +48,14 @@ export default function MediaVaultPage() {
     setUploading(true);
     const tags = pendingTags.split(",").map((t) => t.trim()).filter(Boolean);
 
-    for (const file of Array.from(fileList)) {
-      const kind = kindFromMime(file.type);
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const path = `${crypto.randomUUID()}-${safeName}`;
-
-      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
-        contentType: file.type || undefined,
-        upsert: false,
-      });
-      if (uploadError) {
-        console.error("Upload failed:", uploadError);
-        alert(`Failed to upload ${file.name}: ${uploadError.message}`);
-        continue;
-      }
-
-      const { error: insertError } = await supabase.from("media_items").insert({
-        storage_path: path,
-        file_name: file.name,
-        file_type: kind,
-        mime_type: file.type || null,
-        size_bytes: file.size,
-        tags,
-      });
-      if (insertError) {
-        console.error("Metadata insert failed:", insertError);
-        alert(`Uploaded ${file.name} but failed to save its info: ${insertError.message}`);
-      }
+    const failures = await uploadFiles(fileList, tags);
+    if (failures.length > 0) {
+      alert(`Some uploads had issues:\n\n${failures.join("\n")}`);
     }
 
     setUploading(false);
     setPendingTags("");
     if (fileInputRef.current) fileInputRef.current.value = "";
-    load();
   };
 
   const requestDelete = (item: MediaItem) => {
@@ -142,27 +64,8 @@ export default function MediaVaultPage() {
       return;
     }
     deleteItem(item);
-  };
-
-  const deleteItem = async (item: MediaItem) => {
-    await supabase.storage.from(BUCKET).remove([item.storage_path]);
-    await supabase.from("media_items").delete().eq("id", item.id);
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
     setConfirmingDelete(false);
-    if (selected?.id === item.id) setSelected(null);
-  };
-
-  const updateCaption = async (item: MediaItem, caption: string) => {
-    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, caption } : i)));
-    await supabase.from("media_items").update({ caption: caption || null }).eq("id", item.id);
-  };
-
-  const renameFile = async (item: MediaItem, newName: string) => {
-    const trimmed = newName.trim();
-    if (!trimmed || trimmed === item.file_name) return;
-    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, file_name: trimmed } : i)));
-    setSelected((prev) => (prev && prev.id === item.id ? { ...prev, file_name: trimmed } : prev));
-    await supabase.from("media_items").update({ file_name: trimmed }).eq("id", item.id);
+    setSelected(null);
   };
 
   const downloadFile = async (item: MediaItem) => {
@@ -270,14 +173,14 @@ export default function MediaVaultPage() {
           ))}
         </div>
 
-        {loading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading media…</div>}
-        {!loading && filtered.length === 0 && (
+        {isLoading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading media…</div>}
+        {!isLoading && filtered.length === 0 && (
           <div style={{ fontSize: 13, color: "rgb(var(--text-muted))", padding: 24, textAlign: "center", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16 }}>
             {items.length === 0 ? "No files yet. Upload something to get started." : "Nothing matches this filter."}
           </div>
         )}
 
-        {!loading && filtered.length > 0 && (
+        {!isLoading && filtered.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
             {filtered.map((item) => {
               const Icon = KIND_ICON[item.file_type];

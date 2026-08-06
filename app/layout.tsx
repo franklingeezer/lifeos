@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Fraunces, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import Providers from "./providers";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces" });
@@ -29,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className={`${inter.variable} ${fraunces.variable} ${plexMono.variable} font-sans`}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
