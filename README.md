@@ -1,91 +1,336 @@
-# LifeOS — Phase 4 (Part 1)
+<div align="center">
 
-Personal operating system. Single-user, no auth yet.
+# 🧠 LifeOS
 
-## Setup
+### Your Personal Operating System
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+*A modular, AI-powered productivity platform that unifies tasks, projects, notes, journals, habits, finance, learning, media, and ideas into one connected workspace.*
 
-2. Create `.env.local` in the project root with your own Supabase project's credentials:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=your-project-url
-   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
-   ```
-   Find these under Supabase → **Settings → API**. `.env.local` is gitignored — never commit it, and never paste real keys into this README or any tracked file.
+---
 
-3. Run the schema and migrations, in order, in the Supabase **SQL Editor**:
-   - `supabase/schema.sql` — base tables: `tasks`, `habits`, `habit_logs`, `projects`, `notes`, `finance_transactions`, plus starter task seeds.
-   - `supabase/phase2_tasks.sql`, `phase2b_projects.sql`, `phase2c_calendar.sql`
-   - `supabase/phase3_journal.sql`, `phase3b_habits.sql`
-   - `supabase/phase4_learning.sql`
-   - `supabase/phase4b_debts.sql`
+![Next.js](https://img.shields.io/badge/Next.js-15-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-green)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-4-38BDF8)
+![Status](https://img.shields.io/badge/Status-Active%20Development-success)
 
-   **Important:** tables created via the SQL Editor need explicit grants in addition to RLS policies, or every query returns a `42501 permission denied` error. After creating any new table, run:
-   ```sql
-   grant select, insert, update, delete on public.<table_name> to anon, authenticated;
-   ```
+</div>
 
-4. Start the dev server:
-   ```bash
-   npm run dev
-   ```
-   Open http://localhost:3000
+---
 
-## What's built
+# ✨ Vision
 
-| Module | Status |
-|---|---|
-| Tasks | Live — full CRUD |
-| Projects | Live — full CRUD |
-| Calendar | Live — full CRUD |
-| Notes | Live — full CRUD |
-| Journal | Live — full CRUD |
-| Habits | Live — full CRUD |
-| **Finance** | **Live — transactions, month nav, summary cards, category pie chart, create/edit** |
-| **Debts & Loans** | **Live — owed-to-me / I-owe tracking per person, due dates, overdue flagging, settle/delete** |
-| Learning | Live — resource cards, status filters, progress, ratings |
-| Idea Vault | In progress |
-| Media Vault | Not started |
-| AI Assistant | Not started |
-| Analytics | Not started |
-| Settings | Not started |
+LifeOS isn't another todo app.
 
-- Auth — not implemented. Every table is wide open via RLS "allow all" policies. Fine for personal/local use, but before deploying anywhere public, add Supabase Auth and tighten each policy to `auth.uid() = user_id`.
-- Dashboard widgets for some modules may still show placeholder data pending a pass to wire them to the live tables — check `Dashboard.tsx` before assuming a widget is real.
+It's a **Personal Operating System** that combines productivity, knowledge management, journaling, finance, learning, and AI into a single connected ecosystem.
 
-## Structure
+Every module works independently, but together they build a complete picture of your work, habits, and life.
+
+---
+
+# 🚀 Features
+
+## Dashboard
+
+- Personalized home screen
+- Daily priorities
+- AI Morning Brief
+- Habit overview
+- Active projects
+- Weekly calendar
+- Finance summary
+- Recent notes
+
+---
+
+## Projects
+
+- Project management
+- Progress tracking
+- Status indicators
+- Search
+- AI integration (planned)
+
+---
+
+## Tasks
+
+- Kanban Board
+- List View
+- Priorities
+- Search
+- Project linking
+- AI Prioritization
+
+---
+
+## Calendar
+
+- Monthly calendar
+- Event management
+- Task integration
+- Project deadlines
+
+---
+
+## Notes
+
+- Rich notes
+- Tags
+- Search
+- Pinning
+- AI Search
+
+---
+
+## Journal
+
+Daily journaling with
+
+- Mood
+- Energy
+- Stress
+- Wins
+- Failures
+- Lessons
+- Tomorrow goals
+- Gratitude
+
+---
+
+## Habits
+
+- Habit tracking
+- GitHub-style streak visualization
+- Longest streak
+- Success rate
+
+---
+
+## Finance
+
+- Income
+- Expenses
+- Savings
+- Investments
+- Debts
+- Analytics
+- Category charts
+
+---
+
+## Learning
+
+Track
+
+- Courses
+- Study hours
+- Completion
+- Progress
+
+---
+
+## Media Vault
+
+Organize
+
+- Images
+- Videos
+- Documents
+- Tags
+
+---
+
+## Idea Vault
+
+Capture and organize ideas using custom stages.
+
+- Spark
+- Developing
+- Validated
+- Archived
+
+with ratings and tags.
+
+---
+
+## AI Assistant
+
+LifeOS AI is designed to assist—not replace—the user.
+
+Current capabilities include:
+
+- ✅ Morning Brief
+- ✅ Natural Search
+- 🚧 Task Prioritization
+- 🚧 Journal Insights
+- 🚧 Weekly Reviews
+
+---
+
+## Analytics
+
+Visual insights across
+
+- Productivity
+- Mood
+- Finance
+- Projects
+- Habits
+- Ideas
+
+---
+
+# 🧠 AI Philosophy
+
+LifeOS follows one simple principle:
+
+> **AI should reduce busywork, not replace thinking.**
+
+Every feature in LifeOS works without AI.
+
+AI enhances the experience by:
+
+- Summarizing
+- Searching
+- Prioritizing
+- Connecting information
+- Generating insights
+
+---
+
+# 🏗 Architecture
 
 ```
-app/
-  layout.tsx           — fonts, root html/body
-  page.tsx             — renders Dashboard
-  globals.css          — theme tokens (CSS vars, dark/light)
-  finance/page.tsx     — Finance route
-components/
-  dashboard/
-    Dashboard.tsx      — sidebar + topbar + widget grid
-  shell/
-    Sidebar.tsx        — nav, module hrefs
-  finance/
-    FinancePage.tsx    — transactions, summary cards, category pie chart
-    DebtsPanel.tsx      — owed-to-me / I-owe tracker
-  (tasks, projects, calendar, notes, journal, habits, learning — one folder each,
-   same card/modal/drawer pattern as ProjectsPage.tsx)
-lib/
-  supabase/
-    client.ts           — browser client
-    server.ts            — server client (ready for when auth lands)
-supabase/
-  schema.sql             — base schema, run first
-  phase2_tasks.sql, phase2b_projects.sql, phase2c_calendar.sql
-  phase3_journal.sql, phase3b_habits.sql
-  phase4_learning.sql
-  phase4b_debts.sql       — finance_debts table for Debts & Loans
+LifeOS
+
+├── Dashboard
+├── Projects
+├── Tasks
+├── Calendar
+├── Notes
+├── Journal
+├── Habits
+├── Finance
+├── Learning
+├── Media Vault
+├── Idea Vault
+├── Analytics
+├── Settings
+└── AI Assistant
 ```
 
-## Next up (Phase 4 Part 2)
+---
 
-Finish Idea Vault, then Media Vault (needs Supabase Storage, not just a table — file uploads, buckets, storage policies alongside metadata).
+# 🛠 Tech Stack
+
+### Frontend
+
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- React
+
+### Backend
+
+- Supabase
+- PostgreSQL
+
+### AI
+
+- OpenAI
+- AI SDK
+- Custom Prompt Engineering
+
+### State Management
+
+- Zustand
+
+### Validation
+
+- Zod
+
+---
+
+# 📈 Roadmap
+
+## Completed
+
+- Dashboard
+- Projects
+- Tasks
+- Calendar
+- Notes
+- Journal
+- Habits
+- Finance
+- Learning
+- Media Vault
+- Idea Vault
+- Analytics
+- Settings
+- Morning Brief AI
+- Natural Search AI
+
+---
+
+## In Progress
+
+- Task Prioritization
+- Journal Insights
+- Weekly Reviews
+- Project Planning AI
+
+---
+
+## Planned
+
+- Universal Search
+- Command Palette
+- Life Timeline
+- Knowledge Graph
+- Mobile App
+- Voice Assistant
+- Focus Mode
+
+---
+
+# 🎯 Long-term Vision
+
+LifeOS aims to become a true **Personal Operating System** where every module is interconnected.
+
+Imagine asking:
+
+> *"What was I working on before my exams?"*
+
+LifeOS can combine information from:
+
+- Tasks
+- Projects
+- Journal
+- Notes
+- Finance
+- Habits
+- Learning
+
+to generate a complete answer.
+
+---
+
+# 🤝 Contributing
+
+Contributions, suggestions, and feature ideas are always welcome.
+
+---
+
+# 📄 License
+
+MIT License
+
+---
+
+<div align="center">
+
+**Built with ❤️ using Next.js, Supabase, TypeScript, Tailwind CSS, and AI.**
+
+</div>
