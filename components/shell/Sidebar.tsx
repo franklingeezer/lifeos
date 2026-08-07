@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutGrid, FolderKanban, CheckSquare, Calendar, StickyNote, BookOpen,
   Flame, Wallet, Image as ImageIcon, GraduationCap, Lightbulb, Bot,
-  BarChart3, Settings, ChevronsLeft, ChevronsRight, LogOut,
+  BarChart3, Settings, ChevronsLeft, ChevronsRight, LogOut, Search,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import CommandPalette from "@/components/shell/CommandPalette";
 
 const NAV = [
   { icon: LayoutGrid, label: "Dashboard", href: "/" },
@@ -29,6 +30,7 @@ const NAV = [
 
 export default function Sidebar() {
   const [expanded, setExpanded] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -38,6 +40,20 @@ export default function Sidebar() {
     router.push("/login");
     router.refresh();
   };
+
+  // Global Ctrl+K (Windows/Linux) / Cmd+K (Mac) — works from anywhere in the
+  // app since Sidebar is mounted on every page. preventDefault stops the
+  // browser's own address-bar shortcut from stealing focus instead.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <div
@@ -61,6 +77,23 @@ export default function Sidebar() {
           }}
         />
         {expanded && <span className="font-display" style={{ fontSize: 16, fontWeight: 500 }}>LifeOS</span>}
+      </div>
+
+      <div
+        className="lifeos-navbtn"
+        onClick={() => setPaletteOpen(true)}
+        title="Search (Ctrl+K)"
+        style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 10,
+          cursor: "pointer", color: "rgb(var(--text-muted))", marginBottom: 8,
+          border: "1px solid rgb(var(--border))", justifyContent: expanded ? "space-between" : "center",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Search size={17} strokeWidth={1.7} />
+          {expanded && <span style={{ fontSize: 13.5 }}>Search</span>}
+        </div>
+        {expanded && <kbd style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "1px 5px", borderRadius: 4, background: "rgb(var(--surface-2))", color: "rgb(var(--text-muted))" }}>Ctrl K</kbd>}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
@@ -109,6 +142,8 @@ export default function Sidebar() {
         {expanded ? <ChevronsLeft size={17} /> : <ChevronsRight size={17} />}
         {expanded && <span style={{ fontSize: 13 }}>Collapse</span>}
       </div>
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }
