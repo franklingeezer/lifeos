@@ -56,3 +56,41 @@ body {
 *::-webkit-scrollbar-thumb:hover {
   background-color: rgb(var(--text-muted));
 }
+
+/* ------------------------------------------------------------------
+   Mobile navigation (Part 1 of the responsive pass)
+
+   The desktop icon rail (components/shell/Sidebar.tsx) is a flex
+   sibling of each page's content column, so hiding it here is enough
+   to let the content column claim the full width automatically —
+   no changes needed on any individual page for this part.
+
+   Below 641px the rail disappears entirely and is replaced by a
+   floating menu button + full-screen drawer, both rendered inside
+   Sidebar.tsx but toggled purely by these media queries rather than
+   JS viewport detection, so there's no resize-triggered flash.
+   ------------------------------------------------------------------ */
+.lifeos-sidebar-rail {
+  display: flex;
+}
+.lifeos-mobile-fab {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .lifeos-sidebar-rail {
+    display: none;
+  }
+  .lifeos-mobile-fab {
+    display: flex;
+  }
+
+  /* The rounded "floating card" look every page shares works well with
+     room to breathe on desktop; on a phone-width viewport it just eats
+     padding for no visual benefit, so square it off edge-to-edge. */
+  .lifeos-shell {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+}
