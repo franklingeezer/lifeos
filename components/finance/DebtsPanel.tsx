@@ -54,7 +54,7 @@ export default function DebtsPanel() {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
         <div style={{ fontSize: 15, fontWeight: 600 }}>Debts &amp; loans</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgb(var(--text-muted))", cursor: "pointer" }}>
             <input type="checkbox" checked={showSettled} onChange={(e) => setShowSettled(e.target.checked)} />
             Show settled
@@ -96,7 +96,7 @@ export default function DebtsPanel() {
 
       {showCreate && (
         <div onClick={() => setShowCreate(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 22, width: 380, maxHeight: "80vh", overflowY: "auto" }}>
+          <div onClick={(e) => e.stopPropagation()} className="lifeos-modal-box" style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 22, width: 380, maxHeight: "80vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <span style={{ fontSize: 15, fontWeight: 600 }}>Add debt / loan</span>
               <X size={16} style={{ cursor: "pointer", color: "rgb(var(--text-muted))" }} onClick={() => setShowCreate(false)} />

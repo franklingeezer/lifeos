@@ -77,6 +77,7 @@ export default function IdeaVaultPage() {
 
   return (
     <div
+      className="lifeos-shell"
       style={{
         background: "rgb(var(--bg))", color: "rgb(var(--text))", minHeight: "600px",
         display: "flex", borderRadius: 20, overflow: "hidden", border: "1px solid rgb(var(--border))", position: "relative",
@@ -90,10 +91,10 @@ export default function IdeaVaultPage() {
 
       <Sidebar />
 
-      <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
+      <div className="lifeos-page-content" style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div className="font-display" style={{ fontSize: 24, fontWeight: 500 }}>Idea Vault</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 10, padding: "0 10px" }}>
               <Search size={14} color="rgb(var(--text-muted))" />
               <input
@@ -226,7 +227,7 @@ export default function IdeaVaultPage() {
 
       {/* Edit drawer */}
       {editingIdea && (
-        <div key={editingIdea.id} style={{ position: "fixed", top: 0, right: 0, height: "100%", width: 380, background: "rgb(var(--surface))", borderLeft: "1px solid rgb(var(--border))", padding: 22, overflowY: "auto", zIndex: 50, boxShadow: "-8px 0 24px rgba(0,0,0,0.3)" }}>
+        <div key={editingIdea.id} className="lifeos-edit-drawer" style={{ position: "fixed", top: 0, right: 0, height: "100%", width: 380, background: "rgb(var(--surface))", borderLeft: "1px solid rgb(var(--border))", padding: 22, overflowY: "auto", zIndex: 50, boxShadow: "-8px 0 24px rgba(0,0,0,0.3)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "rgb(var(--text-muted))" }}>Edit idea</span>
             <X size={16} style={{ cursor: "pointer", color: "rgb(var(--text-muted))" }} onClick={() => { setEditingId(null); setConfirmingDelete(false); }} />

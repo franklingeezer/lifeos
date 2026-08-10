@@ -93,4 +93,236 @@ body {
     border-left: none !important;
     border-right: none !important;
   }
+
+  /* Every page's content column pins itself to a fixed max-height with its
+     own internal scrollbar, which is a fine desktop pattern (keeps the
+     Sidebar visible) but reads as a broken "double scrollbar" on mobile,
+     since the browser chrome already handles page scroll on a phone. */
+  .lifeos-page-content {
+    max-height: none !important;
+    overflow-y: visible !important;
+    overflow-x: hidden !important;
+    padding: 16px 14px !important;
+  }
+
+  /* Safety net: if any element inside a page's content ever overflows
+     horizontally (a header row that doesn't wrap, a badge that doesn't
+     shrink, etc.), the browser's default behavior is to let that overflow
+     drag the ENTIRE page sideways — which is what happened with the Tasks
+     header before this rule existed. overflow-x: hidden above stops that
+     class of bug everywhere at once. It does NOT affect elements that
+     intentionally scroll horizontally on their own (like .lifeos-kanban-grid)
+     since those manage their own separate, nested scroll container —
+     only overflow escaping *out* of .lifeos-page-content is blocked. */
+}
+
+/* ------------------------------------------------------------------
+   Dashboard's 12-column grid (Part 2)
+
+   Cards set their own width via inline `gridColumn: "span N"`, which
+   normally beats a stylesheet — the `!important` + child-selector
+   override below is the one legitimate way around that, so mobile can
+   force every card to full width without touching Dashboard.tsx's
+   per-card span values.
+   ------------------------------------------------------------------ */
+.lifeos-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .lifeos-dashboard-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .lifeos-dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .lifeos-dashboard-grid > * {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Part 3 — Tasks (kanban) and Finance's two-column layout
+   ------------------------------------------------------------------ */
+
+/* Kanban tabs — mobile-only quick-jump row above the swipeable columns.
+   Desktop already shows all 3 columns at once, so this stays hidden there. */
+.lifeos-kanban-tabs {
+  display: none;
+}
+
+/* Kanban: 3 equal columns on desktop. Below 780px, forcing 3 columns into
+   whatever width is left after the mobile nav would squash each column
+   to near-unusable — a horizontal swipe/scroll (with snap points, like a
+   native app's card carousel) keeps the kanban metaphor intact instead of
+   silently switching the user to list view for them.
+
+   Column width is a PERCENTAGE of the scroll container, not `vw` — vw is
+   measured against the raw browser viewport, which doesn't account for
+   the page's own padding, so a vw-based width can silently overflow the
+   actual content area and never leave a visible peek of the next column.
+   Percentage is relative to the real container, so the peek is reliable
+   regardless of padding/sidebar width. The tab row above gives an
+   explicit, gesture-free way to jump between columns too, since swipe
+   alone isn't discoverable without a visual hint. */
+.lifeos-kanban-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 780px) {
+  .lifeos-kanban-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .lifeos-kanban-grid {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding-bottom: 4px;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+  }
+  .lifeos-kanban-grid > * {
+    flex: 0 0 88%;
+    scroll-snap-align: start;
+  }
+}
+
+/* Finance: a fixed 300px sidebar column next to the transaction list is
+   fine on desktop but leaves almost nothing for the list on a phone —
+   stack them instead. */
+.lifeos-finance-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 780px) {
+  .lifeos-finance-layout {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Part 4 — modals, edit drawers, Command Palette
+
+   Both patterns below set a fixed pixel width inline (e.g. `width: 360`).
+   `max-width` from a stylesheet class always caps that regardless of
+   where the base width came from, so no !important or width override
+   is needed — just a ceiling that only kicks in once the viewport gets
+   narrow enough to matter.
+   ------------------------------------------------------------------ */
+
+/* Centered create/edit modals (backdrop + box, alignItems: center) */
+@media (max-width: 480px) {
+  .lifeos-modal-box {
+    max-width: calc(100vw - 32px) !important;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+}
+
+/* Right-side edit drawers (position: fixed, top/right: 0, height: 100%) */
+@media (max-width: 480px) {
+  .lifeos-edit-drawer {
+    width: min(92vw, 380px) !important;
+  }
+}
+
+/* Command Palette: give the footer hint bar room to wrap instead of
+   clipping its three "Navigate / Open / Esc Close" groups edge to edge. */
+@media (max-width: 480px) {
+  .lifeos-palette-footer {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Part 5a — remaining pages: Analytics' side-by-side charts and
+   Journal's 3-up mood/energy/stress row
+   ------------------------------------------------------------------ */
+@media (max-width: 640px) {
+  .lifeos-analytics-charts {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .lifeos-journal-scales {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Part 5c — AI Assistant's tab bar: wrap onto a second row on narrow
+   screens instead of relying on undiscoverable horizontal scroll (same
+   lesson as the original kanban fix — a hidden scroll affordance isn't
+   good enough on its own).
+   ------------------------------------------------------------------ */
+@media (max-width: 640px) {
+  .lifeos-ai-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Part 5b — Notes and Journal's internal list/editor split view
+
+   Both pages are a 3-column layout at heart: [global nav][list][editor].
+   Part 1 already collapses the global nav on mobile; this handles the
+   remaining two columns with a mobile master-detail pattern — show the
+   list full-width by default, and only show the editor (full-width, with
+   a back button) once something is actually selected. The "hide"/"show"
+   classes are applied by the component based on whether a note/entry is
+   active, so this CSS purely controls how those states render at mobile
+   width — desktop always shows both panes side by side, untouched.
+   ------------------------------------------------------------------ */
+.lifeos-notes-back-btn,
+.lifeos-journal-back-btn {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .lifeos-notes-list,
+  .lifeos-journal-list {
+    width: 100% !important;
+    border-right: none !important;
+    overflow-x: hidden;
+  }
+  .lifeos-notes-list.lifeos-hide-mobile,
+  .lifeos-journal-list.lifeos-hide-mobile {
+    display: none !important;
+  }
+
+  .lifeos-notes-editor,
+  .lifeos-journal-editor {
+    display: none !important;
+  }
+  .lifeos-notes-editor.lifeos-show-mobile {
+    display: flex !important;
+    width: 100%;
+    overflow-x: hidden;
+  }
+  .lifeos-journal-editor.lifeos-show-mobile {
+    display: block !important;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .lifeos-notes-back-btn,
+  .lifeos-journal-back-btn {
+    display: flex !important;
+  }
 }

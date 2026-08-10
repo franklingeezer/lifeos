@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Plus, Search, LayoutList, Columns3, X, Trash2, Circle, CheckCircle2,
 } from "lucide-react";
@@ -28,6 +28,32 @@ export default function TasksPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<Status | null>(null);
+  const [activeCol, setActiveCol] = useState(0);
+  const kanbanRef = useRef<HTMLDivElement>(null);
+
+  const scrollToColumn = (index: number) => {
+    setActiveCol(index);
+    const child = kanbanRef.current?.children[index] as HTMLElement | undefined;
+    child?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  };
+
+  const handleKanbanScroll = () => {
+    const el = kanbanRef.current;
+    if (!el) return;
+    // Figure out which column is most visible right now, so the tab row
+    // below can highlight the right one as the user swipes — this only
+    // matters on mobile; the tabs themselves are CSS-hidden on desktop.
+    let closest = 0;
+    let closestDist = Infinity;
+    Array.from(el.children).forEach((child, i) => {
+      const dist = Math.abs((child as HTMLElement).offsetLeft - el.scrollLeft);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = i;
+      }
+    });
+    setActiveCol(closest);
+  };
 
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState("");
@@ -73,6 +99,7 @@ export default function TasksPage() {
 
   return (
     <div
+      className="lifeos-shell"
       style={{
         background: "rgb(var(--bg))",
         color: "rgb(var(--text))",
@@ -92,12 +119,12 @@ export default function TasksPage() {
 
       <Sidebar />
 
-      <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
+      <div className="lifeos-page-content" style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div className="font-display" style={{ fontSize: 24, fontWeight: 500 }}>Tasks</div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 10, padding: "7px 10px" }}>
               <Search size={14} color="rgb(var(--text-muted))" />
               <input
@@ -143,7 +170,24 @@ export default function TasksPage() {
 
         {/* Kanban view */}
         {!isLoading && view === "kanban" && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+          <>
+          <div className="lifeos-kanban-tabs">
+            {COLUMNS.map((col, i) => (
+              <button
+                key={col.key}
+                onClick={() => scrollToColumn(i)}
+                style={{
+                  flex: 1, padding: "8px 6px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer",
+                  background: activeCol === i ? "rgb(var(--accent))" : "rgb(var(--surface))",
+                  color: activeCol === i ? "rgb(var(--bg))" : "rgb(var(--text-muted))",
+                }}
+              >
+                {col.label} · {filtered.filter((t) => t.status === col.key).length}
+              </button>
+            ))}
+          </div>
+
+          <div className="lifeos-kanban-grid" ref={kanbanRef} onScroll={handleKanbanScroll}>
             {COLUMNS.map((col) => {
               const colTasks = filtered.filter((t) => t.status === col.key);
               return (
@@ -203,6 +247,7 @@ export default function TasksPage() {
               );
             })}
           </div>
+          </>
         )}
 
         {/* List view */}
@@ -255,6 +300,7 @@ export default function TasksPage() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 22, width: 360 }}
+            className="lifeos-modal-box"
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <span style={{ fontSize: 15, fontWeight: 600 }}>New task</span>
@@ -294,6 +340,7 @@ export default function TasksPage() {
       {editingTask && (
         <div
           key={editingTask.id}
+          className="lifeos-edit-drawer"
           style={{
             position: "fixed", top: 0, right: 0, height: "100%", width: 340,
             background: "rgb(var(--surface))", borderLeft: "1px solid rgb(var(--border))",

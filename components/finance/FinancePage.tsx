@@ -96,6 +96,7 @@ export default function FinancePage() {
 
   return (
     <div
+      className="lifeos-shell"
       style={{
         background: "rgb(var(--bg))", color: "rgb(var(--text))", minHeight: "600px",
         display: "flex", borderRadius: 20, overflow: "hidden", border: "1px solid rgb(var(--border))", position: "relative",
@@ -109,10 +110,10 @@ export default function FinancePage() {
 
       <Sidebar />
 
-      <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
+      <div className="lifeos-page-content" style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div className="font-display" style={{ fontSize: 24, fontWeight: 500 }}>Finance</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 10, padding: "4px" }}>
               <button className="icon-btn" onClick={() => shiftMonth(-1)} style={iconBtnStyle}><ChevronLeft size={15} /></button>
               <span className="font-mono" style={{ fontSize: 12.5, padding: "0 6px", minWidth: 116, textAlign: "center" }}>
@@ -138,7 +139,7 @@ export default function FinancePage() {
           <SummaryCard icon={net >= 0 ? TrendingUp : TrendingDown} label="Net" value={net} color={net >= 0 ? "rgb(var(--accent))" : "rgb(var(--danger))"} emphasized />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
+        <div className="lifeos-finance-layout">
           {/* Transaction list */}
           <div style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, overflow: "hidden" }}>
             {isLoading && <div style={{ padding: 16, fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading transactions…</div>}
@@ -220,7 +221,7 @@ export default function FinancePage() {
       {/* Create modal */}
       {showCreate && (
         <div onClick={() => setShowCreate(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 22, width: 380, maxHeight: "80vh", overflowY: "auto" }}>
+          <div onClick={(e) => e.stopPropagation()} className="lifeos-modal-box" style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 22, width: 380, maxHeight: "80vh", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <span style={{ fontSize: 15, fontWeight: 600 }}>New transaction</span>
               <X size={16} style={{ cursor: "pointer", color: "rgb(var(--text-muted))" }} onClick={() => setShowCreate(false)} />
@@ -255,7 +256,7 @@ export default function FinancePage() {
 
       {/* Edit drawer */}
       {editingTx && (
-        <div key={editingTx.id} style={{ position: "fixed", top: 0, right: 0, height: "100%", width: 360, background: "rgb(var(--surface))", borderLeft: "1px solid rgb(var(--border))", padding: 22, overflowY: "auto", zIndex: 50, boxShadow: "-8px 0 24px rgba(0,0,0,0.3)" }}>
+        <div key={editingTx.id} className="lifeos-edit-drawer" style={{ position: "fixed", top: 0, right: 0, height: "100%", width: 360, background: "rgb(var(--surface))", borderLeft: "1px solid rgb(var(--border))", padding: 22, overflowY: "auto", zIndex: 50, boxShadow: "-8px 0 24px rgba(0,0,0,0.3)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "rgb(var(--text-muted))" }}>Edit transaction</span>
             <X size={16} style={{ cursor: "pointer", color: "rgb(var(--text-muted))" }} onClick={() => setEditingId(null)} />

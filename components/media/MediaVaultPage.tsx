@@ -100,6 +100,7 @@ export default function MediaVaultPage() {
 
   return (
     <div
+      className="lifeos-shell"
       style={{
         background: "rgb(var(--bg))", color: "rgb(var(--text))", minHeight: "600px",
         display: "flex", borderRadius: 20, overflow: "hidden", border: "1px solid rgb(var(--border))", position: "relative",
@@ -113,10 +114,10 @@ export default function MediaVaultPage() {
 
       <Sidebar />
 
-      <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
+      <div className="lifeos-page-content" style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div className="font-display" style={{ fontSize: 24, fontWeight: 500 }}>Media Vault</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 10, padding: "0 10px" }}>
               <Search size={14} color="rgb(var(--text-muted))" />
               <input

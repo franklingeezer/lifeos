@@ -80,7 +80,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
         display: "flex", alignItems: "flex-start", justifyContent: "center",
-        paddingTop: "12vh", zIndex: 100,
+        paddingTop: "12vh", paddingLeft: 16, paddingRight: 16, zIndex: 100,
       }}
     >
       <div
@@ -160,7 +160,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         </div>
 
         {/* Footer hint bar */}
-        <div style={{
+        <div className="lifeos-palette-footer" style={{
           display: "flex", alignItems: "center", gap: 16, padding: "9px 16px",
           borderTop: "1px solid rgb(var(--border))", fontSize: 11, color: "rgb(var(--text-muted))",
         }}>

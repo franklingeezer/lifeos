@@ -4,7 +4,7 @@ import React, { useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  Plus, Search, Pin, Trash2, Eye, Pencil, X, Folder as FolderIcon,
+  Plus, Search, Pin, Trash2, Eye, Pencil, X, Folder as FolderIcon, ArrowLeft,
 } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useNotes, type Note } from "@/hooks/useNotes";
@@ -76,7 +76,7 @@ export default function NotesPage() {
   };
 
   return (
-    <div style={{ background: "rgb(var(--bg))", color: "rgb(var(--text))", minHeight: "600px", display: "flex", borderRadius: 20, overflow: "hidden", border: "1px solid rgb(var(--border))" }}>
+    <div className="lifeos-shell" style={{ background: "rgb(var(--bg))", color: "rgb(var(--text))", minHeight: "600px", display: "flex", borderRadius: 20, overflow: "hidden", border: "1px solid rgb(var(--border))" }}>
       <style>{`
         .lifeos-navbtn:hover { background: rgb(var(--surface-2)); }
         .note-row:hover { background: rgb(var(--surface-2)); }
@@ -97,7 +97,7 @@ export default function NotesPage() {
       <Sidebar />
 
       {/* Notes list */}
-      <div style={{ width: 280, borderRight: "1px solid rgb(var(--border))", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      <div className={`lifeos-notes-list${active ? " lifeos-hide-mobile" : ""}`} style={{ width: 280, borderRight: "1px solid rgb(var(--border))", display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "18px 16px 12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div className="font-display" style={{ fontSize: 19, fontWeight: 500 }}>Notes</div>
@@ -142,7 +142,7 @@ export default function NotesPage() {
       </div>
 
       {/* Editor */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div className={`lifeos-notes-editor${active ? " lifeos-show-mobile" : ""}`} style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {!active ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "rgb(var(--text-muted))", fontSize: 13 }}>
             Select a note, or create one.
@@ -151,6 +151,14 @@ export default function NotesPage() {
           <>
             <div style={{ padding: "16px 22px", borderBottom: "1px solid rgb(var(--border))" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8 }}>
+                <button
+                  className="lifeos-notes-back-btn icon-btn"
+                  onClick={() => setActiveId(null)}
+                  style={{ ...iconBtnStyle, flexShrink: 0 }}
+                  title="Back to notes"
+                >
+                  <ArrowLeft size={16} color="rgb(var(--text-muted))" />
+                </button>
                 <input
                   value={active.title}
                   onChange={(e) => scheduleSave(active.id, { title: e.target.value })}

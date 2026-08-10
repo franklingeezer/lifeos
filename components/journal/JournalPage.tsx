@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Search, Plus, Trash2 } from "lucide-react";
+import { Search, Plus, Trash2, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toLocalISODate } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
@@ -19,7 +19,33 @@ type Entry = {
   gratitude: string | null;
 };
 
-const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
+// Same visual language as the rest of the app's status dots (danger ->
+// gold -> accent), not emoji or plain numbers. Mood and Energy run low-to-
+// high in the "bad to good" direction; Stress is intentionally reversed —
+// calm (low) is the good end, overwhelmed (high) is the bad end, so its
+// gradient runs the opposite way for that to read correctly at a glance.
+const MOOD_META = [
+  { label: "Rough", color: "rgb(var(--danger))" },
+  { label: "Low", color: "#C98F6B" },
+  { label: "Okay", color: "rgb(var(--gold))" },
+  { label: "Good", color: "#8FB89A" },
+  { label: "Great", color: "rgb(var(--accent))" },
+];
+const ENERGY_META = [
+  { label: "Drained", color: "rgb(var(--danger))" },
+  { label: "Low", color: "#C98F6B" },
+  { label: "Steady", color: "rgb(var(--gold))" },
+  { label: "Energized", color: "#8FB89A" },
+  { label: "Peak", color: "rgb(var(--accent))" },
+];
+const STRESS_META = [
+  { label: "Calm", color: "rgb(var(--accent))" },
+  { label: "Mild", color: "#8FB89A" },
+  { label: "Moderate", color: "rgb(var(--gold))" },
+  { label: "High", color: "#C98F6B" },
+  { label: "Overwhelmed", color: "rgb(var(--danger))" },
+];
+const MOOD_COLORS = MOOD_META.map((m) => m.color);
 const toISODate = toLocalISODate;
 const todayISO = toISODate(new Date());
 
@@ -99,7 +125,7 @@ export default function JournalPage() {
   };
 
   return (
-    <div style={{ background: "rgb(var(--bg))", color: "rgb(var(--text))", minHeight: "600px", display: "flex", borderRadius: 20, overflow: "hidden", border: "1px solid rgb(var(--border))" }}>
+    <div className="lifeos-shell" style={{ background: "rgb(var(--bg))", color: "rgb(var(--text))", minHeight: "600px", display: "flex", borderRadius: 20, overflow: "hidden", border: "1px solid rgb(var(--border))" }}>
       <style>{`
         .lifeos-navbtn:hover { background: rgb(var(--surface-2)); }
         .entry-row:hover { background: rgb(var(--surface-2)); }
@@ -110,7 +136,7 @@ export default function JournalPage() {
       <Sidebar />
 
       {/* Entry list */}
-      <div style={{ width: 260, borderRight: "1px solid rgb(var(--border))", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      <div className={`lifeos-journal-list${active ? " lifeos-hide-mobile" : ""}`} style={{ width: 260, borderRight: "1px solid rgb(var(--border))", display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "18px 16px 12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div className="font-display" style={{ fontSize: 19, fontWeight: 500 }}>Journal</div>
@@ -137,7 +163,7 @@ export default function JournalPage() {
               style={{ padding: "10px 10px", borderRadius: 10, cursor: "pointer", marginBottom: 2, background: activeId === e.id ? "rgb(var(--accent) / 0.12)" : "transparent" }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 16 }}>{MOODS[e.mood - 1]}</span>
+                <span style={{ width: 8, height: 8, borderRadius: 99, background: MOOD_COLORS[e.mood - 1], flexShrink: 0 }} />
                 <span style={{ fontSize: 12.5, fontWeight: 500 }}>{formatDate(e.entry_date)}</span>
               </div>
             </div>
@@ -146,7 +172,7 @@ export default function JournalPage() {
       </div>
 
       {/* Editor */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "22px 26px" }}>
+      <div className={`lifeos-journal-editor${active ? " lifeos-show-mobile" : ""}`} style={{ flex: 1, overflowY: "auto", padding: "22px 26px" }}>
         {!active ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "rgb(var(--text-muted))" }}>
             <span style={{ fontSize: 13 }}>No entry for today yet.</span>
@@ -157,7 +183,17 @@ export default function JournalPage() {
         ) : (
           <React.Fragment key={active.id}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-              <div className="font-display" style={{ fontSize: 21, fontWeight: 500 }}>{formatDate(active.entry_date)}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <button
+                  className="lifeos-journal-back-btn icon-btn"
+                  onClick={() => setActiveId(null)}
+                  style={{ width: 28, height: 28, borderRadius: 8, background: "transparent", border: "1px solid rgb(var(--border))", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+                  title="Back to entries"
+                >
+                  <ArrowLeft size={13} color="rgb(var(--text-muted))" />
+                </button>
+                <div className="font-display" style={{ fontSize: 21, fontWeight: 500 }}>{formatDate(active.entry_date)}</div>
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 11, color: "rgb(var(--text-muted))" }}>
                   {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : ""}
@@ -168,10 +204,10 @@ export default function JournalPage() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
-              <ScaleField label="Mood" value={active.mood} onChange={(v) => setScale(active.id, "mood", v)} labels={MOODS} />
-              <ScaleField label="Energy" value={active.energy} onChange={(v) => setScale(active.id, "energy", v)} />
-              <ScaleField label="Stress" value={active.stress} onChange={(v) => setScale(active.id, "stress", v)} />
+            <div className="lifeos-journal-scales" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
+              <ScaleTrackField label="Mood" meta={MOOD_META} value={active.mood} onChange={(v) => setScale(active.id, "mood", v)} />
+              <ScaleTrackField label="Energy" meta={ENERGY_META} value={active.energy} onChange={(v) => setScale(active.id, "energy", v)} />
+              <ScaleTrackField label="Stress" meta={STRESS_META} value={active.stress} onChange={(v) => setScale(active.id, "stress", v)} />
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -188,26 +224,53 @@ export default function JournalPage() {
   );
 }
 
-function ScaleField({ label, value, onChange, labels }: { label: string; value: number; onChange: (v: number) => void; labels?: string[] }) {
+type ScaleMeta = { label: string; color: string };
+
+function ScaleTrackField({
+  label, meta, value, onChange,
+}: {
+  label: string;
+  meta: ScaleMeta[];
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const active = meta[value - 1];
   return (
     <div style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 12, padding: 12 }}>
-      <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))", marginBottom: 8 }}>{label}</div>
-      <div style={{ display: "flex", gap: 6, justifyContent: "space-between" }}>
-        {[1, 2, 3, 4, 5].map((n) => (
-          <div
-            key={n}
-            className="scale-btn"
-            onClick={() => onChange(n)}
-            style={{
-              width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", fontSize: labels ? 15 : 12, fontWeight: 600, transition: "transform 0.1s ease",
-              background: value === n ? "rgb(var(--accent))" : "rgb(var(--surface-2))",
-              color: value === n ? "rgb(var(--bg))" : "rgb(var(--text-muted))",
-            }}
-          >
-            {labels ? labels[n - 1] : n}
-          </div>
-        ))}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+        <span style={{ fontSize: 11.5, color: "rgb(var(--text-muted))" }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: active.color, transition: "color 0.2s ease" }}>{active.label}</span>
+      </div>
+      <div style={{ position: "relative", height: 26 }}>
+        {/* gradient track */}
+        <div
+          style={{
+            position: "absolute", top: "50%", left: 3, right: 3, height: 3, borderRadius: 99, transform: "translateY(-50%)",
+            background: `linear-gradient(90deg, ${meta.map((m) => m.color).join(", ")})`,
+            opacity: 0.3,
+          }}
+        />
+        {/* nodes */}
+        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", height: "100%" }}>
+          {meta.map((m, i) => {
+            const n = i + 1;
+            const isActive = value === n;
+            return (
+              <div
+                key={n}
+                onClick={() => onChange(n)}
+                title={m.label}
+                style={{
+                  width: isActive ? 22 : 14, height: isActive ? 22 : 14, borderRadius: 99, cursor: "pointer", flexShrink: 0,
+                  background: isActive ? m.color : "rgb(var(--surface-2))",
+                  border: `2px solid ${isActive ? m.color : "rgb(var(--border))"}`,
+                  boxShadow: isActive ? `0 0 0 4px ${m.color}22` : "none",
+                  transition: "width 0.18s cubic-bezier(.34,1.56,.64,1), height 0.18s cubic-bezier(.34,1.56,.64,1), background 0.18s ease, box-shadow 0.18s ease",
+                }}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );

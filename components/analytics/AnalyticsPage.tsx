@@ -188,6 +188,7 @@ export default function AnalyticsPage() {
 
   return (
     <div
+      className="lifeos-shell"
       style={{
         background: "rgb(var(--bg))", color: "rgb(var(--text))", minHeight: "600px",
         display: "flex", borderRadius: 20, overflow: "hidden", border: "1px solid rgb(var(--border))", position: "relative",
@@ -195,7 +196,7 @@ export default function AnalyticsPage() {
     >
       <Sidebar />
 
-      <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
+      <div className="lifeos-page-content" style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
         <div className="font-display" style={{ fontSize: 24, fontWeight: 500, marginBottom: 20 }}>Analytics</div>
 
         {loading && <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading analytics…</div>}
@@ -211,7 +212,7 @@ export default function AnalyticsPage() {
               <Kpi icon={FolderKanban} label="Active projects" value={String(kpis.activeProjects)} color={BLUE} />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+            <div className="lifeos-analytics-charts" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
               {/* Task completion trend */}
               <ChartCard title="Task completion — last 14 days">
                 <ResponsiveContainer width="100%" height={200}>

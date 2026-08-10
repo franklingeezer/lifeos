@@ -80,6 +80,7 @@ export default function Dashboard() {
 
   return (
     <div
+      className="lifeos-shell"
       style={{
         background: "rgb(var(--bg))",
         color: "rgb(var(--text))",
@@ -100,8 +101,8 @@ export default function Dashboard() {
 
       <Sidebar />
 
-      <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 22 }}>
+      <div className="lifeos-page-content" style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 22 }}>
           <div>
             <div className="font-display" style={{ fontSize: 26, fontWeight: 500 }}>{greeting}</div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4, color: "rgb(var(--text-muted))", fontSize: 13 }}>
@@ -140,7 +141,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 14 }}>
+        <div className="lifeos-dashboard-grid">
           {/* Tasks — live */}
           <div className="lifeos-card" style={{ gridColumn: "span 7", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>

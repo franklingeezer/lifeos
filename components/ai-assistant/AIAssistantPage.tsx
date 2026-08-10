@@ -24,6 +24,7 @@ export default function AIAssistantPage() {
 
   return (
     <div
+      className="lifeos-shell"
       style={{
         background: "rgb(var(--bg))", color: "rgb(var(--text))", minHeight: "600px",
         display: "flex", borderRadius: 20, overflow: "hidden", border: "1px solid rgb(var(--border))", position: "relative",
@@ -38,11 +39,11 @@ export default function AIAssistantPage() {
 
       <Sidebar />
 
-      <div style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
+      <div className="lifeos-page-content" style={{ flex: 1, padding: "22px 26px", overflowY: "auto", maxHeight: "700px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
           <div className="font-display" style={{ fontSize: 24, fontWeight: 500, marginBottom: 16 }}>AI Assistant</div>
 
-          <div style={{ display: "flex", gap: 6, marginBottom: 22, borderBottom: "1px solid rgb(var(--border))", overflowX: "auto" }}>
+          <div className="lifeos-ai-tabs" style={{ display: "flex", gap: 6, marginBottom: 22, borderBottom: "1px solid rgb(var(--border))", overflowX: "auto" }}>
             {TABS.map((t) => {
               const Icon = t.icon;
               const active = activeTab === t.key;
