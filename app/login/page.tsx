@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Suspense, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -90,9 +91,12 @@ function LoginForm() {
           style={inputStyle}
         />
 
-        <label style={{ display: "block", fontSize: 13, color: "rgb(var(--text-muted))", margin: "16px 0 6px" }}>
-          Password
-        </label>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "16px 0 6px" }}>
+          <label style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Password</label>
+          <Link href="/forgot-password" style={{ fontSize: 12, color: "rgb(var(--accent))" }}>
+            Forgot password?
+          </Link>
+        </div>
         <input
           type="password"
           value={password}

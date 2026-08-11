@@ -2,9 +2,14 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // LifeOS is single-user, so "logged in" is the only check we need — no
-// role/permission logic. Every route except /login requires a session;
+// role/permission logic. Every route except these requires a session;
 // /login itself redirects away if you're already signed in.
-const PUBLIC_PATHS = ["/login"];
+//
+// /forgot-password and /auth/callback must stay public — someone who's
+// locked out is by definition not logged in yet, and the callback route
+// is what turns their emailed reset link into a session in the first
+// place, so it can't require one to run.
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/auth/callback"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
