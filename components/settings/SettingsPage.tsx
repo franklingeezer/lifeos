@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { User, Palette, Coins, Trash2, Check, Sun, Moon, Database, AlertTriangle, Loader2 } from "lucide-react";
+import { mutate } from "swr";
+import { User, Palette, Coins, Trash2, Check, Sun, Moon, Database, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
+import { CURRENCY_SYMBOL_KEY } from "@/hooks/useCurrencySymbol";
 
 type Settings = {
   display_name: string;
@@ -46,7 +48,15 @@ export default function SettingsPage() {
     setSaved("saving");
     const { error } = await supabase.from("app_settings").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", 1);
     setSaved(error ? "idle" : "saved");
-    if (!error) setTimeout(() => setSaved("idle"), 1800);
+    if (!error) {
+      setTimeout(() => setSaved("idle"), 1800);
+      // Push the new symbol straight into Finance/Debts/Dashboard's shared
+      // cache so they update immediately, instead of waiting for those
+      // pages to happen to revalidate on their own next mount/focus.
+      if (patch.currency_symbol) {
+        mutate(CURRENCY_SYMBOL_KEY, patch.currency_symbol, { revalidate: false });
+      }
+    }
   };
 
   const clearAiCache = async () => {
@@ -229,13 +239,6 @@ export default function SettingsPage() {
                     style={{ width: 100 }}
                   />
                 </SettingsRow>
-                <div style={{
-                  display: "flex", gap: 8, fontSize: 11, color: "rgb(var(--text-muted))",
-                  marginTop: 14, padding: "10px 12px", background: "rgb(var(--surface-2))", borderRadius: 8, lineHeight: 1.5,
-                }}>
-                  <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>Finance and Debts &amp; Loans currently show a hard-coded ৳ symbol regardless of this setting — wiring them up is a follow-up.</span>
-                </div>
               </SettingsCard>
 
               {/* Data / danger zone */}

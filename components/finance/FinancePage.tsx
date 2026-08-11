@@ -7,6 +7,7 @@ import { todayISO } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 import DebtsPanel from "@/components/finance/DebtsPanel";
 import { useFinance, type TxType } from "@/hooks/useFinance";
+import { useCurrencySymbol } from "@/hooks/useCurrencySymbol";
 
 const TYPE_META: Record<TxType, { label: string; color: string }> = {
   income: { label: "Income", color: "rgb(var(--accent))" },
@@ -30,6 +31,7 @@ const monthLabel = (year: number, month: number) =>
   new Date(year, month, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
 export default function FinancePage() {
+  const symbol = useCurrencySymbol();
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -132,11 +134,11 @@ export default function FinancePage() {
 
         {/* Summary cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 20 }}>
-          <SummaryCard icon={TrendingUp} label="Income" value={totals.income} color="rgb(var(--accent))" />
-          <SummaryCard icon={TrendingDown} label="Expenses" value={totals.expense} color="rgb(var(--danger))" />
-          <SummaryCard icon={PiggyBank} label="Savings" value={totals.savings} color="rgb(var(--gold))" />
-          <SummaryCard icon={LineChartIcon} label="Investment" value={totals.investment} color="#8B7FD6" />
-          <SummaryCard icon={net >= 0 ? TrendingUp : TrendingDown} label="Net" value={net} color={net >= 0 ? "rgb(var(--accent))" : "rgb(var(--danger))"} emphasized />
+          <SummaryCard icon={TrendingUp} label="Income" value={totals.income} color="rgb(var(--accent))" symbol={symbol} />
+          <SummaryCard icon={TrendingDown} label="Expenses" value={totals.expense} color="rgb(var(--danger))" symbol={symbol} />
+          <SummaryCard icon={PiggyBank} label="Savings" value={totals.savings} color="rgb(var(--gold))" symbol={symbol} />
+          <SummaryCard icon={LineChartIcon} label="Investment" value={totals.investment} color="#8B7FD6" symbol={symbol} />
+          <SummaryCard icon={net >= 0 ? TrendingUp : TrendingDown} label="Net" value={net} color={net >= 0 ? "rgb(var(--accent))" : "rgb(var(--danger))"} emphasized symbol={symbol} />
         </div>
 
         <div className="lifeos-finance-layout">
@@ -169,7 +171,7 @@ export default function FinancePage() {
                     </div>
                   </div>
                   <div className="font-mono" style={{ fontSize: 13.5, fontWeight: 600, color: meta.color, flexShrink: 0, marginLeft: 12 }}>
-                    {sign}৳{bdt(t.amount_bdt)}
+                    {sign}{symbol}{bdt(t.amount_bdt)}
                   </div>
                 </div>
               );
@@ -193,7 +195,7 @@ export default function FinancePage() {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => [`৳${bdt(value)}`, "Amount"]}
+                        formatter={(value: number) => [`${symbol}${bdt(value)}`, "Amount"]}
                         contentStyle={{ background: "rgb(var(--surface-2))", border: "1px solid rgb(var(--border))", borderRadius: 8, fontSize: 12 }}
                       />
                     </PieChart>
@@ -206,7 +208,7 @@ export default function FinancePage() {
                         <span style={{ width: 7, height: 7, borderRadius: 99, background: pieColors[i % pieColors.length], flexShrink: 0 }} />
                         <span style={{ color: "rgb(var(--text-muted))", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
                       </div>
-                      <span className="font-mono" style={{ flexShrink: 0 }}>৳{bdt(c.value)}</span>
+                      <span className="font-mono" style={{ flexShrink: 0 }}>{symbol}{bdt(c.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -234,7 +236,7 @@ export default function FinancePage() {
                 <option value="investment">Investment</option>
               </select>
             </FormField>
-            <FormField label="Amount (৳)">
+            <FormField label={`Amount (${symbol})`}>
               <input type="number" min="0" step="0.01" autoFocus value={form.amount_bdt} onChange={(e) => setForm({ ...form, amount_bdt: e.target.value })} placeholder="0.00" style={inputStyle} />
             </FormField>
             <FormField label="Category">
@@ -270,7 +272,7 @@ export default function FinancePage() {
               <option value="investment">Investment</option>
             </select>
           </FormField>
-          <FormField label="Amount (৳)">
+          <FormField label={`Amount (${symbol})`}>
             <input type="number" min="0" step="0.01" defaultValue={editingTx.amount_bdt} onBlur={(e) => updateTransaction(editingTx.id, { amount_bdt: parseFloat(e.target.value) || 0 })} style={inputStyle} />
           </FormField>
           <FormField label="Category">
@@ -295,7 +297,7 @@ export default function FinancePage() {
   );
 }
 
-function SummaryCard({ icon: Icon, label, value, color, emphasized }: { icon: React.ElementType; label: string; value: number; color: string; emphasized?: boolean }) {
+function SummaryCard({ icon: Icon, label, value, color, emphasized, symbol }: { icon: React.ElementType; label: string; value: number; color: string; emphasized?: boolean; symbol: string }) {
   return (
     <div style={{ background: "rgb(var(--surface))", border: emphasized ? `1px solid ${color}` : "1px solid rgb(var(--border))", borderRadius: 14, padding: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: "rgb(var(--text-muted))" }}>
@@ -303,7 +305,7 @@ function SummaryCard({ icon: Icon, label, value, color, emphasized }: { icon: Re
         <span style={{ fontSize: 11.5 }}>{label}</span>
       </div>
       <div className="font-mono" style={{ fontSize: 17, fontWeight: 600, color: emphasized ? color : "rgb(var(--text))" }}>
-        ৳{bdt(value)}
+        {symbol}{bdt(value)}
       </div>
     </div>
   );

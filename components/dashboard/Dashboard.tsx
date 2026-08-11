@@ -9,6 +9,7 @@ import Link from "next/link";
 import { toLocalISODate } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 import { useDashboardData, type DashboardTask } from "@/hooks/useDashboardData";
+import { useCurrencySymbol } from "@/hooks/useCurrencySymbol";
 
 const THEME_KEY = "lifeos-theme";
 const WEEK_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -17,6 +18,7 @@ const isoDate = toLocalISODate;
 
 export default function Dashboard() {
   const { data, isLoading, toggleTask } = useDashboardData();
+  const symbol = useCurrencySymbol();
 
   const [theme, setThemeState] = useState<"dark" | "light">("dark");
   const [now, setNow] = useState(new Date());
@@ -211,7 +213,7 @@ export default function Dashboard() {
           <div className="lifeos-card" style={{ gridColumn: "span 4", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 18 }}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Finance — this month</div>
             <div className="font-mono" style={{ fontSize: 22, fontWeight: 500, color: netThisMonth >= 0 ? "rgb(var(--accent))" : "rgb(var(--danger))" }}>
-              ৳{Math.round(Math.abs(netThisMonth)).toLocaleString()}
+              {symbol}{Math.round(Math.abs(netThisMonth)).toLocaleString()}
             </div>
             <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))" }}>{netThisMonth >= 0 ? "net saved" : "net spent"} this month</div>
           </div>

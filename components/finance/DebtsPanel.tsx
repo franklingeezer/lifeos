@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Plus, X, Check, Trash2, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { todayISO } from "@/lib/date";
 import { useDebts, type Debt, type Direction } from "@/hooks/useDebts";
+import { useCurrencySymbol } from "@/hooks/useCurrencySymbol";
 
 const emptyForm = {
   person_name: "",
@@ -17,6 +18,7 @@ const bdt = (n: number) =>
   new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 }).format(Math.round(n));
 
 export default function DebtsPanel() {
+  const symbol = useCurrencySymbol();
   const { debts, isLoading, createDebt, toggleSettled, deleteDebt } = useDebts();
 
   const [showCreate, setShowCreate] = useState(false);
@@ -74,14 +76,14 @@ export default function DebtsPanel() {
             <ArrowDownLeft size={13} color="rgb(var(--accent))" />
             <span style={{ fontSize: 11.5 }}>Owed to me</span>
           </div>
-          <div className="font-mono" style={{ fontSize: 17, fontWeight: 600, color: "rgb(var(--accent))" }}>৳{bdt(totalOwedToMe)}</div>
+          <div className="font-mono" style={{ fontSize: 17, fontWeight: 600, color: "rgb(var(--accent))" }}>{symbol}{bdt(totalOwedToMe)}</div>
         </div>
         <div style={{ background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 14, padding: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: "rgb(var(--text-muted))" }}>
             <ArrowUpRight size={13} color="rgb(var(--danger))" />
             <span style={{ fontSize: 11.5 }}>I owe</span>
           </div>
-          <div className="font-mono" style={{ fontSize: 17, fontWeight: 600, color: "rgb(var(--danger))" }}>৳{bdt(totalIOwe)}</div>
+          <div className="font-mono" style={{ fontSize: 17, fontWeight: 600, color: "rgb(var(--danger))" }}>{symbol}{bdt(totalIOwe)}</div>
         </div>
       </div>
 
@@ -89,8 +91,8 @@ export default function DebtsPanel() {
 
       {!isLoading && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
-          <DebtColumn title="Owed to me" items={owedToMe} accentColor="rgb(var(--accent))" onToggle={toggleSettled} onDelete={deleteDebt} />
-          <DebtColumn title="I owe" items={iOwe} accentColor="rgb(var(--danger))" onToggle={toggleSettled} onDelete={deleteDebt} />
+          <DebtColumn title="Owed to me" items={owedToMe} accentColor="rgb(var(--accent))" onToggle={toggleSettled} onDelete={deleteDebt} symbol={symbol} />
+          <DebtColumn title="I owe" items={iOwe} accentColor="rgb(var(--danger))" onToggle={toggleSettled} onDelete={deleteDebt} symbol={symbol} />
         </div>
       )}
 
@@ -110,7 +112,7 @@ export default function DebtsPanel() {
                 <option value="i_owe">I owe them</option>
               </select>
             </FormField>
-            <FormField label="Amount (৳)">
+            <FormField label={`Amount (${symbol})`}>
               <input type="number" min="0" step="0.01" value={form.amount_bdt} onChange={(e) => setForm({ ...form, amount_bdt: e.target.value })} placeholder="0.00" style={inputStyle} />
             </FormField>
             <FormField label="Due date (optional)">
@@ -131,13 +133,14 @@ export default function DebtsPanel() {
 }
 
 function DebtColumn({
-  title, items, accentColor, onToggle, onDelete,
+  title, items, accentColor, onToggle, onDelete, symbol,
 }: {
   title: string;
   items: Debt[];
   accentColor: string;
   onToggle: (d: Debt) => void;
   onDelete: (id: string) => void;
+  symbol: string;
 }) {
   const today = todayISO();
   return (
@@ -170,7 +173,7 @@ function DebtColumn({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, marginLeft: 10 }}>
               <span className="font-mono" style={{ fontSize: 13, fontWeight: 600, color: d.settled ? "rgb(var(--text-muted))" : accentColor }}>
-                ৳{bdt(d.amount_bdt)}
+                {symbol}{bdt(d.amount_bdt)}
               </span>
               <button className="debt-icon-btn" onClick={() => onToggle(d)} title={d.settled ? "Mark unsettled" : "Mark settled"} style={ghostBtnStyle}>
                 <Check size={14} color={d.settled ? "rgb(var(--accent))" : "rgb(var(--text-muted))"} />

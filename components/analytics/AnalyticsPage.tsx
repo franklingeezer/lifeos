@@ -8,6 +8,7 @@ import {
 import { CheckSquare, Flame, Wallet, BookOpen, FolderKanban, Lightbulb } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toLocalISODate as isoDate } from "@/lib/date";
+import { useCurrencySymbol } from "@/hooks/useCurrencySymbol";
 import Sidebar from "@/components/shell/Sidebar";
 
 const ACCENT = "rgb(var(--accent))";
@@ -43,6 +44,7 @@ type IdeaStatusCount = { status: string; count: number };
 type ProjectStat = { name: string; progress: number; status: string };
 
 export default function AnalyticsPage() {
+  const symbol = useCurrencySymbol();
   const supabase = useMemo(() => createClient(), []);
   const [loading, setLoading] = useState(true);
 
@@ -207,7 +209,7 @@ export default function AnalyticsPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
               <Kpi icon={CheckSquare} label="Tasks completed (14d)" value={String(kpis.tasksCompleted30d)} color={ACCENT} />
               <Kpi icon={Flame} label="Best streak" value={kpis.bestStreak > 0 ? `${kpis.bestStreak}d · ${kpis.bestStreakHabit}` : "—"} color={GOLD} small />
-              <Kpi icon={Wallet} label="Net (30d)" value={`৳${Math.round(kpis.netFinance30d).toLocaleString()}`} color={kpis.netFinance30d >= 0 ? ACCENT : DANGER} />
+              <Kpi icon={Wallet} label="Net (30d)" value={`${symbol}${Math.round(kpis.netFinance30d).toLocaleString()}`} color={kpis.netFinance30d >= 0 ? ACCENT : DANGER} />
               <Kpi icon={BookOpen} label="Avg mood (30d)" value={kpis.avgMood30d !== null ? `${kpis.avgMood30d}/5` : "—"} color={PURPLE} />
               <Kpi icon={FolderKanban} label="Active projects" value={String(kpis.activeProjects)} color={BLUE} />
             </div>
@@ -254,7 +256,7 @@ export default function AnalyticsPage() {
                     <XAxis dataKey="month" tick={{ fontSize: 10, fill: "rgb(var(--text-muted))" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: "rgb(var(--text-muted))" }} axisLine={false} tickLine={false} width={36} />
                     <Tooltip
-                      formatter={(v: number) => `৳${Math.round(v).toLocaleString()}`}
+                      formatter={(v: number) => `${symbol}${Math.round(v).toLocaleString()}`}
                       contentStyle={{ background: "rgb(var(--surface-2))", border: "1px solid rgb(var(--border))", borderRadius: 8, fontSize: 12 }}
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
