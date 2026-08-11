@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkAIRateLimit } from "@/lib/ai-rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +106,14 @@ Rules:
 - "reason" should be specific and short (under 12 words), e.g. "mentions the same deadline" not "this seems related."`;
 
   const userPrompt = `Query: "${query}"\n\nItems:\n${JSON.stringify(corpus)}`;
+
+  const rateLimit = checkAIRateLimit();
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: `You're sending AI requests too quickly. Try again in about ${Math.ceil(rateLimit.retryAfterSeconds / 60)} minute(s).` },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+    );
+  }
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",

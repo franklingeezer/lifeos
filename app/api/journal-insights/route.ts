@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkAIRateLimit } from "@/lib/ai-rate-limit";
 import { toLocalISODate as isoDate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
@@ -103,6 +104,14 @@ Rules:
 - Plain text only. No markdown headers (#), no bold (**).`;
 
   const userPrompt = `Journal entries from ${start ?? "the beginning"} to ${end} (${entries.length} entries):\n\n${JSON.stringify(corpus, null, 2)}\n\nWrite the insights.`;
+
+  const rateLimit = checkAIRateLimit();
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: `You're sending AI requests too quickly. Try again in about ${Math.ceil(rateLimit.retryAfterSeconds / 60)} minute(s).` },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+    );
+  }
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkAIRateLimit } from "@/lib/ai-rate-limit";
 import { toLocalISODate as isoDate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +79,14 @@ Rules:
 - Include every task id from the input, one entry each, ordered by suggested_rank ascending.`;
 
   const userPrompt = `Workload context:\n${JSON.stringify(workload, null, 2)}\n\nOpen tasks:\n${JSON.stringify(tasksForPrompt, null, 2)}\n\nReturn the prioritization.`;
+
+  const rateLimit = checkAIRateLimit();
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: `You're sending AI requests too quickly. Try again in about ${Math.ceil(rateLimit.retryAfterSeconds / 60)} minute(s).` },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+    );
+  }
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
