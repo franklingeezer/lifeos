@@ -34,8 +34,8 @@ export function useNotes() {
 
   const notes = data ?? [];
 
-  const createNote = useCallback(async () => {
-    const payload = { title: "Untitled note", content: "", folder: null, tags: [], pinned: false };
+  const createNote = useCallback(async (title?: string) => {
+    const payload = { title: title?.trim() || "Untitled note", content: "", folder: null, tags: [], pinned: false };
     const { data: created, error } = await supabase.from("notes").insert(payload).select().single();
     if (error || !created) throw error ?? new Error("Insert returned no row");
 

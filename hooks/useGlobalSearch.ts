@@ -85,7 +85,12 @@ export function useGlobalSearch(query: string) {
   });
 
   return {
-    results: data ?? [],
+    // Force an empty result set whenever there's no active query — without
+    // this, keepPreviousData (which exists to prevent flicker *between*
+    // searches) also keeps the *last* search's results on screen even
+    // after the query is cleared back to empty, since SWR doesn't clear
+    // `data` just because the key became null.
+    results: key ? data ?? [] : [],
     isLoading: key !== null && isLoading,
     isActive: key !== null,
   };
