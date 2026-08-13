@@ -13,6 +13,7 @@ export type Idea = {
   status: Status;
   tags: string[];
   potential: number;
+  converted_project_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -22,7 +23,7 @@ const IDEAS_KEY = "ideas";
 async function fetchIdeas(supabase: ReturnType<typeof createClient>): Promise<Idea[]> {
   const { data, error } = await supabase
     .from("idea_vault_items")
-    .select("id, title, description, status, tags, potential, created_at, updated_at")
+    .select("id, title, description, status, tags, potential, converted_project_id, created_at, updated_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as Idea[];

@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, X, Search, Star, Lightbulb, Sprout, TrendingUp, CheckCircle2, Archive } from "lucide-react";
+import Link from "next/link";
+import { Plus, X, Search, Star, Lightbulb, Sprout, TrendingUp, CheckCircle2, Archive, Rocket, ArrowRight } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useIdeaVault, type Status } from "@/hooks/useIdeaVault";
+import { useProjects } from "@/hooks/useProjects";
+import { todayISO } from "@/lib/date";
 
 const emptyForm = {
   title: "",
@@ -24,6 +27,7 @@ const STATUS_ORDER: Status[] = ["spark", "developing", "validated", "archived"];
 
 export default function IdeaVaultPage() {
   const { ideas, isLoading, createIdea, updateIdea, deleteIdea } = useIdeaVault();
+  const { projects, createProject } = useProjects();
 
   const [filter, setFilter] = useState<"all" | Status>("all");
   const [search, setSearch] = useState("");
@@ -31,8 +35,33 @@ export default function IdeaVaultPage() {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [converting, setConverting] = useState(false);
 
   const editingIdea = ideas.find((i) => i.id === editingId) ?? null;
+  const convertedProject = editingIdea?.converted_project_id
+    ? projects.find((p) => p.id === editingIdea.converted_project_id) ?? null
+    : null;
+
+  const handleConvertToProject = async () => {
+    if (!editingIdea || converting) return;
+    setConverting(true);
+    try {
+      const created = await createProject({
+        name: editingIdea.title,
+        description: editingIdea.description,
+        category: null,
+        status: "active",
+        priority: "med",
+        start_date: todayISO(),
+        deadline: null,
+        github_repo: null,
+        live_demo: null,
+      });
+      await updateIdea(editingIdea.id, { converted_project_id: created.id });
+    } finally {
+      setConverting(false);
+    }
+  };
 
   const filtered = ideas.filter((idea) => {
     if (filter !== "all" && idea.status !== filter) return false;
@@ -60,6 +89,7 @@ export default function IdeaVaultPage() {
       status: form.status,
       tags,
       potential: form.potential,
+      converted_project_id: null,
     });
     setForm(emptyForm);
     setShowCreate(false);
@@ -173,6 +203,12 @@ export default function IdeaVaultPage() {
                     </div>
                   )}
 
+                  {idea.converted_project_id && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: "rgb(var(--accent))" }}>
+                      <Rocket size={10} /> Became a project
+                    </div>
+                  )}
+
                   {idea.tags.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: "auto" }}>
                       {idea.tags.slice(0, 4).map((tag) => (
@@ -273,6 +309,34 @@ export default function IdeaVaultPage() {
               })}
             </div>
           </FormField>
+
+          {convertedProject ? (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, marginBottom: 14,
+              background: "rgb(var(--accent) / 0.1)", border: "1px solid rgb(var(--accent) / 0.3)",
+            }}>
+              <Rocket size={15} color="rgb(var(--accent))" style={{ flexShrink: 0 }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5 }}>Became a project</div>
+                <div style={{ fontSize: 11, color: "rgb(var(--text-muted))" }}>{convertedProject.name}</div>
+              </div>
+              <Link href="/projects" style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11.5, fontWeight: 600, color: "rgb(var(--accent))", flexShrink: 0 }}>
+                View <ArrowRight size={12} />
+              </Link>
+            </div>
+          ) : editingIdea.status === "validated" ? (
+            <button
+              onClick={handleConvertToProject}
+              disabled={converting}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", padding: "10px", borderRadius: 10, marginBottom: 14,
+                background: "rgb(var(--accent) / 0.12)", color: "rgb(var(--accent))", border: "1px solid rgb(var(--accent) / 0.3)",
+                fontSize: 13, fontWeight: 600, cursor: converting ? "default" : "pointer", opacity: converting ? 0.6 : 1,
+              }}
+            >
+              <Rocket size={14} /> {converting ? "Creating project…" : "Convert to project"}
+            </button>
+          ) : null}
 
           <FormField label="Potential">
             <StarPicker value={editingIdea.potential} onChange={(v) => updateIdea(editingIdea.id, { potential: v })} />
