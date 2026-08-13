@@ -14,6 +14,7 @@ export type Task = {
   priority: Priority;
   status: Status;
   due_date: string | null;
+  project_id: string | null;
   subtasks: Subtask[];
 };
 
@@ -25,7 +26,7 @@ const TASKS_KEY = "tasks";
 async function fetchTasks(supabase: ReturnType<typeof createClient>): Promise<Task[]> {
   const { data, error } = await supabase
     .from("tasks")
-    .select("id, title, category, priority, status, due_date, subtasks(id, title, done, position)")
+    .select("id, title, category, priority, status, due_date, project_id, subtasks(id, title, done, position)")
     .order("created_at", { ascending: true });
 
   if (error) throw error;
@@ -55,8 +56,8 @@ export function useTasks() {
   const tasks = data ?? [];
 
   const createTask = useCallback(
-    async (input: { title: string; category: string | null; priority: Priority; due_date: string | null }) => {
-      const payload = { ...input, status: "todo" as Status };
+    async (input: { title: string; category: string | null; priority: Priority; due_date: string | null; project_id?: string | null }) => {
+      const payload = { ...input, project_id: input.project_id ?? null, status: "todo" as Status };
       const { data: created, error } = await supabase.from("tasks").insert(payload).select().single();
       if (error || !created) throw error ?? new Error("Insert returned no row");
 

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
-import { Plus, Search, X, Github, ExternalLink } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Plus, Search, X, Github, ExternalLink, CheckSquare, Circle, CheckCircle2 } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useProjects, type Status, type Priority } from "@/hooks/useProjects";
+import { useTasks } from "@/hooks/useTasks";
 
 const STATUS_META: Record<Status, { label: string; bg: string; text: string }> = {
   active: { label: "Active", bg: "rgb(var(--accent))", text: "rgb(var(--bg))" },
@@ -22,6 +23,21 @@ const emptyForm = {
 
 export default function ProjectsPage() {
   const { projects, isLoading, createProject, updateProject, deleteProject } = useProjects();
+  const { tasks, moveTask } = useTasks();
+
+  // Grouped once, not per-project on every render — same shared "tasks"
+  // SWR cache the Tasks page reads from, so this always reflects the
+  // latest status without any extra fetching.
+  const tasksByProject = useMemo(() => {
+    const map = new Map<string, typeof tasks>();
+    for (const t of tasks) {
+      if (!t.project_id) continue;
+      const list = map.get(t.project_id) ?? [];
+      list.push(t);
+      map.set(t.project_id, list);
+    }
+    return map;
+  }, [tasks]);
 
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -129,6 +145,17 @@ export default function ProjectsPage() {
                     <div style={{ height: 5, borderRadius: 99, background: "rgb(var(--surface-2))", overflow: "hidden" }}>
                       <div style={{ width: `${p.progress}%`, height: "100%", background: "rgb(var(--accent))", borderRadius: 99 }} />
                     </div>
+                    {(() => {
+                      const linked = tasksByProject.get(p.id);
+                      if (!linked || linked.length === 0) return null;
+                      const done = linked.filter((t) => t.status === "done").length;
+                      return (
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, color: "rgb(var(--text-muted))" }}>
+                          <CheckSquare size={10} />
+                          <span style={{ fontSize: 10.5 }}>{done} of {linked.length} linked tasks done</span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -254,6 +281,36 @@ export default function ProjectsPage() {
               style={{ width: "100%" }}
             />
           </FormField>
+
+          {(() => {
+            const linked = tasksByProject.get(editingProject.id) ?? [];
+            if (linked.length === 0) return null;
+            const done = linked.filter((t) => t.status === "done").length;
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))", marginBottom: 8 }}>
+                  Linked tasks — {done} of {linked.length} done
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgb(var(--surface-2))", borderRadius: 10, padding: 10 }}>
+                  {linked.map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => moveTask(t.id, t.status === "done" ? "todo" : "done")}
+                      style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+                    >
+                      {t.status === "done" ? <CheckCircle2 size={14} color="rgb(var(--accent))" /> : <Circle size={14} color="rgb(var(--text-muted))" />}
+                      <span style={{ fontSize: 12.5, flex: 1, textDecoration: t.status === "done" ? "line-through" : "none", opacity: t.status === "done" ? 0.55 : 1 }}>
+                        {t.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10.5, color: "rgb(var(--text-muted))", marginTop: 6 }}>
+                  This is a live view, not the Progress slider above — link or unlink tasks from the Tasks page.
+                </div>
+              </div>
+            );
+          })()}
           <FormField label="Deadline">
             <input type="date" defaultValue={editingProject.deadline ?? ""} onChange={(e) => updateProject(editingProject.id, { deadline: e.target.value || null })} style={inputStyle} />
           </FormField>

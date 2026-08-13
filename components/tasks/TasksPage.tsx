@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
-  Plus, Search, LayoutList, Columns3, X, Trash2, Circle, CheckCircle2,
+  Plus, Search, LayoutList, Columns3, X, Trash2, Circle, CheckCircle2, FolderKanban,
 } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useTasks, type Priority, type Status } from "@/hooks/useTasks";
+import { useProjects } from "@/hooks/useProjects";
 
 const COLUMNS: { key: Status; label: string }[] = [
   { key: "todo", label: "To do" },
@@ -22,6 +23,11 @@ export default function TasksPage() {
     createTask, updateTask, deleteTask, moveTask,
     addSubtask, toggleSubtask, deleteSubtask,
   } = useTasks();
+  const { projects } = useProjects();
+  const projectNameById = useMemo(
+    () => new Map(projects.map((p) => [p.id, p.name])),
+    [projects]
+  );
 
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [search, setSearch] = useState("");
@@ -59,6 +65,7 @@ export default function TasksPage() {
   const [newCategory, setNewCategory] = useState("");
   const [newPriority, setNewPriority] = useState<Priority>("med");
   const [newDue, setNewDue] = useState("");
+  const [newProjectId, setNewProjectId] = useState("");
 
   const [subtaskInput, setSubtaskInput] = useState("");
 
@@ -78,11 +85,13 @@ export default function TasksPage() {
       category: newCategory.trim() || null,
       priority: newPriority,
       due_date: newDue || null,
+      project_id: newProjectId || null,
     });
     setNewTitle("");
     setNewCategory("");
     setNewPriority("med");
     setNewDue("");
+    setNewProjectId("");
     setShowCreate(false);
   };
 
@@ -226,6 +235,12 @@ export default function TasksPage() {
                         }}
                       >
                         <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 6 }}>{t.title}</div>
+                        {t.project_id && projectNameById.get(t.project_id) && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6, color: "#5FA8D3" }}>
+                            <FolderKanban size={10} />
+                            <span style={{ fontSize: 10.5 }}>{projectNameById.get(t.project_id)}</span>
+                          </div>
+                        )}
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             <span style={{ width: 6, height: 6, borderRadius: 99, background: priorityColor(t.priority) }} />
@@ -274,6 +289,11 @@ export default function TasksPage() {
                     {t.subtasks.filter((s) => s.done).length}/{t.subtasks.length}
                   </span>
                 )}
+                {t.project_id && projectNameById.get(t.project_id) && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#5FA8D3", flexShrink: 0 }}>
+                    <FolderKanban size={11} /> {projectNameById.get(t.project_id)}
+                  </span>
+                )}
                 {t.due_date && <span className="font-mono" style={{ fontSize: 11, color: "rgb(var(--text-muted))" }}>{t.due_date}</span>}
                 <span style={{ width: 6, height: 6, borderRadius: 99, background: priorityColor(t.priority), flexShrink: 0 }} />
                 {t.category && <span style={{ fontSize: 11, color: "rgb(var(--text-muted))", minWidth: 90, textAlign: "right" }}>{t.category}</span>}
@@ -314,6 +334,12 @@ export default function TasksPage() {
             </FormField>
             <FormField label="Category">
               <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="e.g. LifeOS" style={inputStyle} />
+            </FormField>
+            <FormField label="Project">
+              <select value={newProjectId} onChange={(e) => setNewProjectId(e.target.value)} style={inputStyle}>
+                <option value="">No project</option>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
             </FormField>
             <FormField label="Priority">
               <select value={newPriority} onChange={(e) => setNewPriority(e.target.value as Priority)} style={inputStyle}>
@@ -365,6 +391,16 @@ export default function TasksPage() {
               onBlur={(e) => updateTask(editingTask.id, { category: e.target.value || null })}
               style={inputStyle}
             />
+          </FormField>
+          <FormField label="Project">
+            <select
+              value={editingTask.project_id ?? ""}
+              onChange={(e) => updateTask(editingTask.id, { project_id: e.target.value || null })}
+              style={inputStyle}
+            >
+              <option value="">No project</option>
+              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </FormField>
           <FormField label="Priority">
             <select
