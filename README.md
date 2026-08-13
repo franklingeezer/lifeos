@@ -1,869 +1,134 @@
-<div align="center">
+# LifeOS
 
-# 🧠 LifeOS
+A personal operating system for everyday life — tasks, projects, calendar, notes, journal, habits, finance, learning, and an AI assistant that reads your actual data, all behind one login.
 
-### Your Personal Operating System
+Built for one person, by one person. No teams, no workspaces, no sign-up flow — a single-user system, developed in phases, with the database migrations to prove it.
 
-A personal productivity system that brings tasks, projects, notes, journals, habits, finance, learning, ideas, media, analytics, and AI-powered insights into one place.
-
-![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-blue?logo=typescript)
-![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38BDF8?logo=tailwindcss)
-![Status](https://img.shields.io/badge/Status-Active%20Development-success)
-
-</div>
-
----
-
-## 🌌 About
-
-**LifeOS** is a personal operating system designed to bring different areas of everyday life into a single connected workspace.
-
-Instead of managing tasks, projects, notes, journals, habits, finances, learning, ideas, and media across multiple applications, LifeOS puts them together in one system.
-
-The long-term goal is simple:
-
-> **LifeOS doesn't just store your life. It helps you understand it.**
-
----
-
-## ✨ Core Idea
-
-LifeOS is built around three principles:
-
-1. **Build the system first.**
-2. **Keep every module useful on its own.**
-3. **Use AI to make the system smarter, not more complicated.**
-
-AI is an assistant layer on top of the core system.
-
-It helps with searching, summarizing, prioritizing, and discovering patterns while keeping the user in control.
-
----
-
-# 🚧 Current Status
-
-LifeOS is actively under development.
-
-### Core Platform
-
-- [x] Dashboard
-- [x] Projects
-- [x] Tasks
-- [x] Calendar
-- [x] Notes
-- [x] Journal
-- [x] Habits
-- [x] Finance
-- [x] Learning
-- [x] Media Vault
-- [x] Idea Vault
-- [x] Analytics
-- [x] Settings
-- [x] Responsive / Mobile Design
-
-### Authentication
-
-- [x] Login page
-- [x] Supabase authentication
-- [x] Single-user account
-- [ ] Complete RLS hardening
-- [ ] Full authentication/security testing
-
-### AI Assistant
-
-- [x] Morning Brief
-- [x] Natural Search
-- [x] Task Prioritization
-- [x] Journal Insights
-- [x] Weekly Review
-- [ ] Project Plan Suggestions
-- [ ] Deeper cross-module AI context
-
----
-
-# 🧩 Modules
-
-## 🏠 Dashboard
-
-The central overview of LifeOS.
-
-The dashboard currently brings together:
-
-- Today's priorities
-- Active projects
-- Habit progress
-- Finance summary
-- Project progress
-- Weekly overview
-- Recent notes
-- AI Morning Brief
-
-The goal is to make the dashboard the first place to understand what needs attention.
-
----
-
-## 📁 Projects
-
-Manage personal, academic, and professional projects.
-
-Features include:
-
-- Project creation
-- Project descriptions
-- Progress tracking
-- Status
-- Search
-- Active/completed projects
-- GitHub/project references
-
-Example project states can include:
-
-- Active
-- Completed
-- Archived
-
----
-
-## ✅ Tasks
-
-A task management system with both Kanban and List views.
-
-Features include:
-
-- Task creation
-- Status
-- Priority
-- Due dates
-- Search
-- Subtasks
-- Completion tracking
-- Kanban board
-- List view
-
-AI-powered task prioritization is also available through the AI Assistant.
-
----
-
-## 📅 Calendar
-
-A dedicated calendar for managing events and important dates.
-
-Features include:
-
-- Monthly calendar
-- Event creation
-- Scheduled tasks
-- Project-related events
-- Deadlines
-- Navigation between months
-
----
-
-## 📝 Notes
-
-A personal note-taking and knowledge area.
-
-Features include:
-
-- Create notes
-- Edit notes
-- Search
-- Tags
-- Pinning
-- Note organization
-
-Notes can also be searched using LifeOS Natural Search.
-
----
-
-## 📔 Journal
-
-A structured daily reflection system.
-
-Journal entries can contain:
-
-- Mood
-- Energy
-- Stress
-- Today's wins
-- Today's failures
-- Lessons learned
-- Tomorrow's goals
-- Gratitude
-
-The journal also provides data for AI-powered insights and weekly reviews.
-
----
-
-## 🔥 Habits
-
-Track recurring habits and consistency.
-
-Features include:
-
-- Habit creation
-- Daily tracking
-- Streaks
-- Longest streak
-- Completion rate
-- Historical visualization
-
----
-
-## 💰 Finance
-
-A personal finance management module.
-
-Track:
-
-- Income
-- Expenses
-- Savings
-- Investments
-- Debts
-- Loans
-- Categories
-- Transactions
-
-Finance analytics provide visual summaries of spending and income.
-
----
-
-## 📚 Learning
-
-Track courses, skills, and learning progress.
-
-Features include:
-
-- Learning items
-- Categories
-- Progress
-- Study hours
-- Completion status
-
----
-
-## 🎬 Media Vault
-
-A personal media library for storing and organizing files.
-
-Supports:
-
-- Images
-- Videos
-- Documents
-- Other files
-- Tags
-- Search
-
-The Media Vault can be used for personal assets, project materials, references, and inspiration.
-
----
-
-## 💡 Idea Vault
-
-A dedicated place for capturing and developing ideas.
-
-Ideas can move through different stages:
-
-```text
-💭 Spark
-   ↓
-🛠️ Developing
-   ↓
-✅ Validated
-   ↓
-📦 Archived
+```
+Next.js 14 · TypeScript · Supabase · PostgreSQL · Tailwind CSS · Groq (Llama 3.3 70B)
 ```
 
-Ideas can contain:
-
-- Title
-- Description
-- Rating
-- Tags
-- Category
-- Status
-
-The goal is to turn random thoughts into actionable projects.
-
 ---
 
-# 🤖 AI Assistant
+## Why
 
-The AI Assistant is one of the major features of LifeOS.
+Most productivity setups are five separate apps that don't talk to each other — a task manager, a notes app, a journal, a budget spreadsheet, a habit tracker. LifeOS puts all of it behind one login, one database, and one design system, so the pieces can eventually inform each other instead of living in isolation.
 
-It is designed to work with the user's existing LifeOS data rather than functioning as a generic chatbot.
+The AI layer isn't a chatbot bolted on top. Each AI route queries Supabase directly for real data — open tasks, habit logs, journal entries — builds a structured summary, and sends *that* to Groq, not a freeform prompt. The model never invents information it wasn't given.
 
-Current AI capabilities include:
+## Modules
 
----
+**Dashboard** — today's priorities, active projects, habit streaks, finance summary, and the AI morning brief, pulled together on load via a single `useDashboardData` hook.
 
-## 🌅 Morning Brief
+**Tasks** — Kanban and list views over the same data, drag-to-reorder via a `position` column, subtasks, priority (`low` / `med` / `high`), due dates. Feeds the AI prioritizer.
 
-Generates a personalized overview based on available LifeOS information.
+**Projects** — status (active / completed / archived), progress, deadlines, GitHub or external references. Cross-links to tasks and calendar are on the roadmap but not wired up yet.
 
-It can consider:
+**Calendar** — month view combining manually-created events with task due dates and project deadlines in one place.
 
-- Tasks
-- Projects
-- Habits
-- Recent activity
-- Journal information
-- Other relevant data
+**Notes** — tags, pinning, search. Indexed by Natural Search alongside everything else.
 
-The goal is to answer:
+**Journal** — one entry per day (`entry_date` is unique), capturing mood, energy, stress, wins, failures, lessons, tomorrow's goals, and gratitude. Feeds Journal Insights and the Weekly Review.
 
-> **What actually matters today?**
+**Habits** — daily check-ins, streak calculation (current + longest), completion rate, and a per-habit color for the history view.
 
----
+**Finance** — income, expenses, savings, investments, and debts, categorized and chartable.
 
-## 🔎 Natural Search
+**Learning** — courses and skills with category, progress, and study hours.
 
-Natural Search allows users to search LifeOS using normal language instead of exact keywords.
+**Media Vault** — a private Supabase Storage bucket for images, video, and documents, accessed only via signed URLs — never public.
 
-Examples:
+**Idea Vault** — a lightweight pipeline: `Spark → Developing → Validated → Archived`, with rating, tags, and category per idea.
 
-```text
-Show me my active projects.
+**Analytics** — Recharts views over task completion, habit performance, mood/energy/stress trends, finance, and the idea pipeline.
 
-What did I write about productivity recently?
+## AI Assistant
 
-Find my unfinished tasks.
+Five server-side routes under `app/api/`, all calling Groq's `llama-3.3-70b-versatile` directly (not through a client SDK), all sharing one in-memory rate limiter capped at **15 requests per 10-minute window across all five routes combined**.
 
-What was I working on yesterday?
+- **Morning Brief** (`/api/morning-brief`) — pulls overdue tasks, tasks due today/tomorrow, habit streaks, stale projects (no update in 3+ days), and deadlines in the next 7 days into a JSON summary, then asks the model for 3–6 terse bullets. Cached per calendar day in `ai_briefs`; regenerable on demand.
+- **Natural Search** (`/api/natural-search`) — plain-language queries over tasks, notes, projects, and journal entries instead of exact-keyword search.
+- **Task Prioritization** (`/api/prioritize-tasks`) — ranks open tasks using full context (priority, due date, project), not just a date sort.
+- **Journal Insights** (`/api/journal-insights`) — looks for recurring themes across a 30-day, 90-day, or all-time window of entries.
+- **Weekly Review** (`/api/review`) — one route, two modes (`weekly` / `monthly`), rolling up tasks, habits, journal, and finance into a single written summary.
 
-Show me everything related to LifeOS.
+All five are careful about timezone: "today" is computed with `Intl.DateTimeFormat` pinned to `Asia/Dhaka`, not `Date.toISOString()`, which would silently drift a day off between midnight and 6am local time.
+
+## Database
+
+Ten-plus tables, built up through phased, additive SQL migrations rather than one monolithic schema — `supabase/schema.sql` for the Phase 1 base, then `phase2_*` through `phase5_*` layered on top in order. Every table is nullable-`user_id` and RLS-permissive at first (single-developer, pre-auth phase), then locked down in `phase5_auth_lockdown.sql` once a real Supabase Auth user exists — policies scoped to `auth.uid() = user_id`, ownership enforced at the database level rather than trusted to the client.
+
+```
+tasks, habits, habit_logs, projects, events, journal_entries,
+learning_items, idea_vault_items, ai_briefs, ai_reviews,
+ai_journal_insights, app_settings, storage.objects (media bucket)
 ```
 
-The goal is to make the user's own data accessible through natural conversation.
-
----
-
-## 🎯 Task Prioritization
-
-AI can analyze existing tasks and suggest which tasks deserve attention first.
-
-Instead of simply sorting tasks by date, the system can consider available task context and provide a more meaningful priority recommendation.
-
----
-
-## 🔍 Journal Insights
-
-AI Journal Insights analyze journal information to identify recurring themes and patterns.
-
-Potential insights include:
-
-- Recurring topics
-- Productivity patterns
-- Common challenges
-- Positive progress
-- Reflection patterns
-- Changes over time
-
-The goal is to help the user understand their own history.
-
----
-
-## 📊 Weekly Review
-
-The Weekly Review summarizes the user's week using information from LifeOS.
-
-It can bring together:
-
-- Tasks
-- Projects
-- Habits
-- Journal
-- Learning
-- Finance
-- Activity
-
-The goal is to answer:
-
-> **What happened this week?**
-
-> **What went well?**
-
-> **What didn't?**
-
-> **What should I focus on next?**
-
----
-
-# 📊 Analytics
-
-LifeOS includes an analytics module for turning activity data into visual information.
-
-Current analytics include:
-
-- Task completion
-- Habit performance
-- Finance
-- Mood
-- Energy
-- Stress
-- Project activity
-- Idea Vault pipeline
-
-The long-term purpose of Analytics is to help answer:
-
-> **How am I actually doing?**
-
-rather than simply showing raw data.
-
----
-
-# 📱 Responsive Design
-
-LifeOS is designed to work across different screen sizes.
-
-Supported layouts include:
-
-- Desktop
-- Laptop
-- Tablet
-- Mobile
-
-The interface adapts:
-
-- Navigation
-- Cards
-- Grids
-- Forms
-- Charts
-- Tables
-- Module layouts
-
-while maintaining the overall LifeOS visual identity.
-
----
-
-# 🔐 Authentication
-
-LifeOS currently uses a **single-user authentication model**.
-
-A personal account is stored through Supabase Authentication and the application includes a dedicated login page.
-
-The current flow is:
-
-```text
-Login Page
-    ↓
-Supabase Authentication
-    ↓
-Authenticated Session
-    ↓
-LifeOS
-```
-
-The project is currently designed primarily for personal use.
-
-Multi-user functionality is not currently the goal.
-
----
-
-# 🛡️ Security
-
-LifeOS uses Supabase and PostgreSQL as its backend infrastructure.
-
-Security work includes:
-
-- Supabase Authentication
-- PostgreSQL
-- Row Level Security
-- User ownership
-- Protected routes
-- Environment variables
-- Server-side operations
-
-The intended ownership model is:
-
-```text
-Authenticated User
-       ↓
-   auth.uid()
-       ↓
-    user_id
-       ↓
-User-owned data
-```
-
-Security and RLS hardening remain part of the ongoing development process.
-
----
-
-# 🏗️ Architecture
-
-LifeOS follows a modular architecture.
-
-```text
-LifeOS
-│
-├── Dashboard
-│
-├── Productivity
-│   ├── Tasks
-│   ├── Projects
-│   └── Calendar
-│
-├── Personal
-│   ├── Notes
-│   ├── Journal
-│   └── Habits
-│
-├── Growth
-│   └── Learning
-│
-├── Finance
-│   └── Finance
-│
-├── Creativity
-│   ├── Idea Vault
-│   └── Media Vault
-│
-├── Intelligence
-│   ├── Morning Brief
-│   ├── Natural Search
-│   ├── Task Prioritization
-│   ├── Journal Insights
-│   └── Weekly Review
-│
-└── Analytics
-```
-
-The general data flow is:
-
-```text
-User
- ↓
-LifeOS UI
- ↓
-Components
- ↓
-Hooks / Application Logic
- ↓
-Supabase
- ↓
-PostgreSQL
-```
-
-AI functionality operates through server-side application logic.
-
----
-
-# 🛠️ Tech Stack
-
-## Frontend
-
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-- Lucide Icons
-
-## Backend
-
-- Supabase
-- PostgreSQL
-- Supabase Authentication
-- Supabase Storage
-
-## Data & State
-
-- Supabase Client
-- Zustand
-- SWR
-- React Hook Form
-- Zod
-
-## Visualization
-
-- Recharts
-
-## AI
-
-- LLM-powered server-side AI
-- Structured prompts
-- Application-aware context
-- AI-generated summaries and recommendations
-
----
-
-# ⚙️ Getting Started
-
-## Requirements
-
-Before running LifeOS, make sure you have:
-
-- Node.js 18+
-- npm
-- A Supabase project
-- Required AI API credentials
-
----
-
-## Clone the Repository
+## Stack
+
+**Frontend** — Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS (CSS-variable-driven theme, dark by default with a light mode), Lucide icons
+**Backend** — Supabase (Postgres, Auth, Storage), Row Level Security
+**State / data** — Zustand for client state, SWR for data fetching, React Hook Form + Zod for forms
+**Charts** — Recharts
+**AI** — Groq API, `llama-3.3-70b-versatile`, called only from server routes — the key never reaches the browser
+
+## Getting started
 
 ```bash
 git clone https://github.com/franklingeezer/lifeos.git
 cd lifeos
-```
-
----
-
-## Install Dependencies
-
-```bash
 npm install
 ```
 
----
-
-## Environment Variables
-
-Create a `.env.local` file in the project root.
-
-Example:
+Create `.env.local`:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-AI_API_KEY=your_ai_provider_key
+GROQ_API_KEY=your_groq_api_key
 ```
 
-Never commit `.env.local` or private API keys to GitHub.
+In the Supabase SQL editor, run the migrations in order:
 
----
+```
+schema.sql → phase2_tasks.sql → phase2b_projects.sql → phase2c_calendar.sql
+→ phase3_journal.sql → phase3b_habits.sql → phase4_learning.sql
+→ phase4c_media.sql → phase4d_idea_vault.sql → phase4e_ai_assistant.sql
+→ phase4f_reviews.sql → phase4g_journal_insights.sql → phase4h_settings.sql
+→ phase5_auth_lockdown.sql
+```
 
-## Run the Development Server
+`phase5_auth_lockdown.sql` expects a Supabase Auth user to already exist (Authentication → Users → Add user) — LifeOS has no public sign-up page by design.
 
 ```bash
 npm run dev
 ```
 
-Then open:
+Open `localhost:3000`.
 
-```text
-http://localhost:3000
+## Structure
+
+```
+app/            routes — one folder per module, plus app/api for the 5 AI routes
+components/     UI, organized to mirror app/ 1:1 by module
+hooks/          data hooks (useTasks, useHabits, useFinance, ...) — own all Supabase calls
+lib/            supabase clients (browser/server/middleware), date.ts, ai-rate-limit.ts
+supabase/       schema.sql + phased migrations, run in order
+middleware.ts   refreshes the Supabase session on every request, including API routes
 ```
 
----
+Each module keeps the same shape: a route in `app/`, its components in `components/<module>`, and a hook in `hooks/` that's the only thing allowed to talk to Supabase for that module. AI routes skip the client SDK entirely and call Groq's REST API directly.
 
-# 🗄️ Database
+## Status
 
-LifeOS uses PostgreSQL through Supabase.
+Core modules, auth, and all five AI features are live and in daily use. RLS lockdown shipped in `phase5_auth_lockdown.sql` after an earlier phase ran with intentionally permissive policies during single-developer testing.
 
-The database supports the major LifeOS modules including:
+Open:
+- Cross-module context for AI (e.g. journal-aware task prioritization, project ↔ task ↔ calendar linking)
+- Global search across all modules
+- Gamification / streak rewards
+- Full auth edge-case and security testing pass
 
-- Users / Authentication
-- Projects
-- Tasks
-- Subtasks
-- Calendar
-- Notes
-- Journal
-- Habits
-- Habit Logs
-- Finance
-- Learning
-- Media
-- Ideas
-- AI outputs
-- Reviews
-- Settings
+## License
 
-Database structure and security are continuously being refined as development progresses.
-
----
-
-# 🗺️ Roadmap
-
-## Core System
-
-- [x] Dashboard
-- [x] Projects
-- [x] Tasks
-- [x] Calendar
-- [x] Notes
-- [x] Journal
-- [x] Habits
-- [x] Finance
-- [x] Learning
-- [x] Media Vault
-- [x] Idea Vault
-- [x] Analytics
-- [x] Settings
-- [x] Mobile responsiveness
-
-## Authentication
-
-- [x] Login page
-- [x] Supabase authentication
-- [x] Single-user account
-- [ ] RLS hardening
-- [ ] Security testing
-
-## AI
-
-- [x] Morning Brief
-- [x] Natural Search
-- [x] Task Prioritization
-- [x] Journal Insights
-- [x] Weekly Review
-- [ ] Project Plan Suggestions
-- [ ] More contextual AI
-
-## Connected LifeOS
-
-- [ ] Project ↔ Tasks
-- [ ] Project ↔ Notes
-- [ ] Project ↔ Calendar
-- [ ] Project ↔ Media
-- [ ] Project ↔ Finance
-- [ ] Journal ↔ Projects
-- [ ] Learning ↔ Projects
-- [ ] Ideas ↔ Projects
-
-## Future Intelligence
-
-- [ ] Personal AI memory
-- [ ] Cross-module insights
-- [ ] Semantic search improvements
-- [ ] Life Timeline
-- [ ] Knowledge Graph
-
-## Future Experience
-
-- [ ] Command Palette
-- [ ] Keyboard shortcuts
-- [ ] Dashboard customization
-- [ ] Focus Mode
-- [ ] Offline support
-
----
-
-# 🧭 Long-Term Vision
-
-The ultimate goal of LifeOS is to create a system where different parts of life can understand and relate to one another.
-
-For example:
-
-```text
-Projects
-   +
-Tasks
-   +
-Calendar
-   +
-Notes
-   +
-Journal
-   +
-Habits
-   +
-Learning
-   +
-Finance
-```
-
-could eventually become one connected personal context.
-
-Instead of asking:
-
-> "Where did I write that?"
-
-you could ask:
-
-> "What was I working on before my exams?"
-
-Instead of looking at individual statistics, you could ask:
-
-> "Why was I less productive last week?"
-
-And instead of simply storing journal entries:
-
-> "What patterns have I developed over the last few months?"
-
-That is the direction LifeOS is heading.
-
----
-
-# 🎯 Development Philosophy
-
-LifeOS follows a simple principle:
-
-> **Build the foundation first. Make it intelligent second.**
-
-The core application should remain useful without AI.
-
-AI should enhance the system rather than become a gimmick.
-
-The focus is therefore:
-
-**Useful → Connected → Intelligent**
-
-rather than:
-
-**AI → Everything**
-
----
-
-# 📌 Current Focus
-
-The current development focus is:
-
-### 🔐 Authentication & Security
-
-The login system and single-user authentication flow are already implemented.
-
-The next layer is strengthening:
-
-- User ownership
-- RLS policies
-- Protected data
-- Authentication edge cases
-- Session handling
-
-After that, development will move toward deeper connections between existing LifeOS modules.
-
----
-
-# 🤝 Project
-
-LifeOS is currently a personal development project.
-
-It is being built as an exploration of:
-
-- Full-stack development
-- Personal productivity systems
-- AI integration
-- Data visualization
-- Database architecture
-- Authentication
-- Modern UI/UX
-
-The project is continuously evolving.
-
----
-
-# 📄 License
-
-MIT License
-
----
-
-<div align="center">
-
-# 🧠 LifeOS
-
-### A Personal Operating System for your life.
-
-**Built with Next.js, TypeScript, Supabase, PostgreSQL, Tailwind CSS, and AI.**
-
-⭐ If you find the project interesting, consider starring the repository.
-
-</div>
+MIT
