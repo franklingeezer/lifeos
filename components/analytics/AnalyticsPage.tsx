@@ -38,6 +38,14 @@ function computeStreak(dates: string[]): number {
 
 type TaskTrendPoint = { day: string; completed: number };
 type HabitRow = { name: string; completions: number; rate: number; streak: number };
+type HabitMoodCorrelation = {
+  name: string;
+  color: string;
+  didAvgMood: number | null;
+  didntAvgMood: number | null;
+  didCount: number;
+  didntCount: number;
+};
 type FinanceMonth = { month: string; income: number; expense: number };
 type JournalPoint = { day: string; mood: number | null; energy: number | null; stress: number | null };
 type IdeaStatusCount = { status: string; count: number };
@@ -59,6 +67,7 @@ export default function AnalyticsPage() {
 
   const [taskTrend, setTaskTrend] = useState<TaskTrendPoint[]>([]);
   const [habitRows, setHabitRows] = useState<HabitRow[]>([]);
+  const [habitMoodCorrelation, setHabitMoodCorrelation] = useState<HabitMoodCorrelation[]>([]);
   const [financeMonths, setFinanceMonths] = useState<FinanceMonth[]>([]);
   const [journalTrend, setJournalTrend] = useState<JournalPoint[]>([]);
   const [ideaCounts, setIdeaCounts] = useState<IdeaStatusCount[]>([]);
@@ -81,7 +90,7 @@ export default function AnalyticsPage() {
         { data: projects },
       ] = await Promise.all([
         supabase.from("tasks").select("done, updated_at").eq("done", true).gte("updated_at", isoDate(d14)),
-        supabase.from("habits").select("id, name"),
+        supabase.from("habits").select("id, name, color"),
         supabase.from("finance_transactions").select("type, amount_bdt, occurred_on").gte("occurred_on", isoDate(d6mo)),
         supabase.from("journal_entries").select("entry_date, mood, energy, stress").gte("entry_date", isoDate(d30)).order("entry_date"),
         supabase.from("idea_vault_items").select("status"),
@@ -107,6 +116,7 @@ export default function AnalyticsPage() {
       let bestStreak = 0;
       let bestStreakHabit = "";
       let habitRowsLocal: HabitRow[] = [];
+      let correlationsLocal: HabitMoodCorrelation[] = [];
       if (habits && habits.length > 0) {
         const habitIds = habits.map((h) => h.id);
         const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 60);
@@ -124,8 +134,36 @@ export default function AnalyticsPage() {
           if (streak > bestStreak) { bestStreak = streak; bestStreakHabit = h.name; }
           return { name: h.name, completions: inLast30.length, rate: Math.round((inLast30.length / 30) * 100), streak };
         });
+
+        // Habit <-> mood correlation — for each habit, split the days that
+        // have a journal entry into "did the habit that day" vs "didn't,"
+        // and compare average mood between the two groups. Meaningful only
+        // once there's a real spread across both groups, hence the
+        // minimum-sample-size check in the render below.
+        if (journalRows && journalRows.length > 0) {
+          const moodByDate = new Map(journalRows.map((j) => [j.entry_date as string, j.mood as number]));
+          correlationsLocal = habits.map((h) => {
+            const completedDates = new Set((logs ?? []).filter((l) => l.habit_id === h.id).map((l) => l.date));
+            const didMoods: number[] = [];
+            const didntMoods: number[] = [];
+            moodByDate.forEach((mood, date) => {
+              if (completedDates.has(date)) didMoods.push(mood);
+              else didntMoods.push(mood);
+            });
+            const avg = (arr: number[]) => (arr.length > 0 ? Math.round((arr.reduce((s, v) => s + v, 0) / arr.length) * 10) / 10 : null);
+            return {
+              name: h.name,
+              color: h.color ?? ACCENT,
+              didAvgMood: avg(didMoods),
+              didntAvgMood: avg(didntMoods),
+              didCount: didMoods.length,
+              didntCount: didntMoods.length,
+            };
+          });
+        }
       }
       setHabitRows(habitRowsLocal);
+      setHabitMoodCorrelation(correlationsLocal);
 
       // Finance by month (last 6 months)
       const monthMap = new Map<string, { income: number; expense: number }>();
@@ -311,7 +349,53 @@ export default function AnalyticsPage() {
               )}
             </ChartCard>
 
-            {/* Projects overview */}
+            {/* Habit <-> mood correlation */}
+            <ChartCard title="Mood on habit days vs. off days">
+              {habitMoodCorrelation.filter((h) => h.didCount >= 3 && h.didntCount >= 3).length === 0 ? (
+                <EmptyState text="Not enough overlapping journal + habit data yet — keep logging both and this fills in." />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {habitMoodCorrelation
+                    .filter((h) => h.didCount >= 3 && h.didntCount >= 3)
+                    .map((h) => {
+                      const diff = (h.didAvgMood ?? 0) - (h.didntAvgMood ?? 0);
+                      return (
+                        <div key={h.name}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 500 }}>{h.name}</span>
+                            {Math.abs(diff) >= 0.3 && (
+                              <span style={{ fontSize: 11, fontWeight: 600, color: diff > 0 ? ACCENT : DANGER }}>
+                                {diff > 0 ? "+" : ""}{diff.toFixed(1)} mood on habit days
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 10, color: "rgb(var(--text-muted))", marginBottom: 3 }}>
+                                Did it ({h.didCount}d) — avg mood {h.didAvgMood}/5
+                              </div>
+                              <div style={{ height: 7, borderRadius: 999, background: "rgb(var(--surface-2))", overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${((h.didAvgMood ?? 0) / 5) * 100}%`, background: h.color, borderRadius: 999 }} />
+                              </div>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 10, color: "rgb(var(--text-muted))", marginBottom: 3 }}>
+                                Skipped ({h.didntCount}d) — avg mood {h.didntAvgMood}/5
+                              </div>
+                              <div style={{ height: 7, borderRadius: 999, background: "rgb(var(--surface-2))", overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${((h.didntAvgMood ?? 0) / 5) * 100}%`, background: "rgb(var(--text-muted))", borderRadius: 999 }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  <div style={{ fontSize: 10, color: "rgb(var(--text-muted))" }}>
+                    Correlation, not causation — a pattern worth noticing, not proof either way.
+                  </div>
+                </div>
+              )}
+            </ChartCard>
             <div style={{ marginTop: 16 }}>
               <ChartCard title="Projects overview">
                 {projectStats.length === 0 ? (
