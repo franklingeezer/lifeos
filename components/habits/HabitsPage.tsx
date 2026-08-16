@@ -10,7 +10,6 @@ const SWATCHES = ["#5EA8A0", "#D4A857", "#C57B6B", "#6C8EF5", "#9B8AC4"];
 const GRID_DAYS = 35;
 
 const toISODate = toLocalISODate;
-const todayISO = toISODate(new Date());
 
 function lastNDays(n: number): string[] {
   const out: string[] = [];
@@ -54,7 +53,11 @@ export default function HabitsPage() {
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(SWATCHES[0]);
 
-  const days = useMemo(() => lastNDays(GRID_DAYS), []);
+  // Recomputed fresh on every render (not cached at module load) so the
+  // grid and the "is this in the future" checks below stay correct if the
+  // tab is left open across midnight.
+  const todayISO = toISODate(new Date());
+  const days = useMemo(() => lastNDays(GRID_DAYS), [todayISO]);
 
   const datesFor = (habitId: string) => new Set(logs.filter((l) => l.habit_id === habitId).map((l) => l.date));
 

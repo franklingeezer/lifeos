@@ -16,13 +16,16 @@ const TYPE_META: Record<TxType, { label: string; color: string }> = {
   investment: { label: "Investment", color: "#8B7FD6" },
 };
 
-const emptyForm = {
+// Function, not a cached object — occurred_on must be today's actual date
+// each time the form is reset, not whatever "today" was when this module
+// first loaded.
+const buildEmptyForm = () => ({
   type: "expense" as TxType,
   category: "",
   amount_bdt: "",
   note: "",
   occurred_on: todayISO(),
-};
+});
 
 const bdt = (n: number) =>
   new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 }).format(Math.round(n));
@@ -44,7 +47,7 @@ export default function FinancePage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(buildEmptyForm);
 
   const editingTx = transactions.find((t) => t.id === editingId) ?? null;
 
@@ -80,7 +83,7 @@ export default function FinancePage() {
       note: form.note.trim() || null,
       occurred_on: form.occurred_on,
     });
-    setForm(emptyForm);
+    setForm(buildEmptyForm());
     setShowCreate(false);
   };
 

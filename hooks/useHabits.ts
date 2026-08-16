@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import { useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { toLocalISODate } from "@/lib/date";
+import { todayISO } from "@/lib/date";
 
 export type Habit = { id: string; name: string; color: string };
 export type HabitLog = { id: string; habit_id: string; date: string; completed: boolean };
@@ -11,7 +11,6 @@ export type HabitLog = { id: string; habit_id: string; date: string; completed: 
 export type HabitsData = { habits: Habit[]; logs: HabitLog[] };
 
 const HABITS_KEY = "habits";
-const todayISO = toLocalISODate(new Date());
 
 async function fetchHabitsData(supabase: ReturnType<typeof createClient>): Promise<HabitsData> {
   const [{ data: h }, { data: l }] = await Promise.all([
@@ -31,7 +30,7 @@ export function useHabits() {
 
   const toggleDay = useCallback(
     async (habitId: string, date: string) => {
-      if (date > todayISO) return; // no marking the future
+      if (date > todayISO()) return; // no marking the future — computed fresh each call, not cached at module load
 
       const isCompleted = logs.some((l) => l.habit_id === habitId && l.date === date);
 

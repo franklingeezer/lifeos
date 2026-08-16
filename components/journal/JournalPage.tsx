@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Search, Plus, Trash2, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { toLocalISODate } from "@/lib/date";
+import { toLocalISODate, todayISO } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 
 type Entry = {
@@ -47,7 +47,6 @@ const STRESS_META = [
 ];
 const MOOD_COLORS = MOOD_META.map((m) => m.color);
 const toISODate = toLocalISODate;
-const todayISO = toISODate(new Date());
 
 export default function JournalPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -65,7 +64,7 @@ export default function JournalPage() {
       .order("entry_date", { ascending: false });
     if (!error && data) {
       setEntries(data as Entry[]);
-      const todays = data.find((e: Entry) => e.entry_date === todayISO);
+      const todays = data.find((e: Entry) => e.entry_date === todayISO());
       if (todays) setActiveId(todays.id);
       else if (data.length > 0) setActiveId(data[0].id);
     }
@@ -75,7 +74,7 @@ export default function JournalPage() {
   useEffect(() => { load(); }, [load]);
 
   const active = entries.find((e) => e.id === activeId) ?? null;
-  const hasToday = entries.some((e) => e.entry_date === todayISO);
+  const hasToday = entries.some((e) => e.entry_date === todayISO());
 
   const filtered = entries.filter((e) => {
     if (!search.trim()) return true;
@@ -84,7 +83,7 @@ export default function JournalPage() {
   });
 
   const createToday = async () => {
-    const payload = { entry_date: todayISO, mood: 3, energy: 3, stress: 3 };
+    const payload = { entry_date: todayISO(), mood: 3, energy: 3, stress: 3 };
     const { data, error } = await supabase.from("journal_entries").insert(payload).select().single();
     if (!error && data) {
       setEntries((prev) => [data as Entry, ...prev]);
@@ -120,7 +119,7 @@ export default function JournalPage() {
 
   const formatDate = (iso: string) => {
     const d = new Date(iso + "T00:00:00");
-    const isToday = iso === todayISO;
+    const isToday = iso === todayISO();
     return isToday ? `Today — ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   };
 
