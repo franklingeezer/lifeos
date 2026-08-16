@@ -6,10 +6,12 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutGrid, FolderKanban, CheckSquare, Calendar, StickyNote, BookOpen,
   Flame, Wallet, Image as ImageIcon, GraduationCap, Lightbulb, Bot,
-  BarChart3, Settings, ChevronsLeft, ChevronsRight, LogOut, Search, Menu, X,
+  BarChart3, Settings, ChevronsLeft, ChevronsRight, LogOut, Search, Menu, X, Bell,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import CommandPalette from "@/components/shell/CommandPalette";
+import NotificationCenter from "@/components/shell/NotificationCenter";
+import { useNotifications } from "@/hooks/useNotifications";
 
 const NAV = [
   { icon: LayoutGrid, label: "Dashboard", href: "/" },
@@ -31,9 +33,20 @@ const NAV = [
 export default function Sidebar() {
   const [expanded, setExpanded] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { unreadCount, sync } = useNotifications();
+
+  // Check for due reminders / newly-overdue tasks once whenever the app
+  // loads or you navigate to a new page — Sidebar is mounted everywhere,
+  // so this is the natural place for the Phase 1 "reminder engine" to run
+  // without needing a background process yet.
+  useEffect(() => {
+    sync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -65,6 +78,11 @@ export default function Sidebar() {
   const openSearch = () => {
     setMobileMenuOpen(false);
     setPaletteOpen(true);
+  };
+
+  const openNotifications = () => {
+    setMobileMenuOpen(false);
+    setNotificationsOpen(true);
   };
 
   return (
@@ -108,6 +126,33 @@ export default function Sidebar() {
             {expanded && <span style={{ fontSize: 13.5 }}>Search</span>}
           </div>
           {expanded && <kbd style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "1px 5px", borderRadius: 4, background: "rgb(var(--surface-2))", color: "rgb(var(--text-muted))" }}>Ctrl K</kbd>}
+        </div>
+
+        <div
+          className="lifeos-navbtn"
+          onClick={() => setNotificationsOpen(true)}
+          title="Notifications"
+          style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 10,
+            cursor: "pointer", color: "rgb(var(--text-muted))", marginBottom: 8, position: "relative",
+            border: "1px solid rgb(var(--border))", justifyContent: expanded ? "space-between" : "center",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ position: "relative" }}>
+              <Bell size={17} strokeWidth={1.7} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: "absolute", top: -4, right: -4, minWidth: 14, height: 14, borderRadius: 99,
+                  background: "rgb(var(--danger))", color: "white", fontSize: 8.5, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px",
+                }}>
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </div>
+            {expanded && <span style={{ fontSize: 13.5 }}>Notifications</span>}
+          </div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
@@ -208,6 +253,30 @@ export default function Sidebar() {
               </div>
             </div>
 
+            <div
+              onClick={openNotifications}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 12px",
+                borderRadius: 10, border: "1px solid rgb(var(--border))", marginBottom: 10, cursor: "pointer", color: "rgb(var(--text-muted))",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ position: "relative" }}>
+                  <Bell size={17} strokeWidth={1.7} />
+                  {unreadCount > 0 && (
+                    <span style={{
+                      position: "absolute", top: -4, right: -4, minWidth: 14, height: 14, borderRadius: 99,
+                      background: "rgb(var(--danger))", color: "white", fontSize: 8.5, fontWeight: 700,
+                      display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px",
+                    }}>
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: 14 }}>Notifications</span>
+              </div>
+            </div>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
               {NAV.map((item) => {
                 const Icon = item.icon;
@@ -246,6 +315,7 @@ export default function Sidebar() {
       )}
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <NotificationCenter open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     </>
   );
 }
