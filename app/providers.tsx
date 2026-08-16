@@ -2,6 +2,7 @@
 
 import React from "react";
 import { SWRConfig } from "swr";
+import ServiceWorkerRegister from "@/components/shell/ServiceWorkerRegister";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -19,6 +20,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         },
       }}
     >
+      <ServiceWorkerRegister />
       {children}
     </SWRConfig>
   );

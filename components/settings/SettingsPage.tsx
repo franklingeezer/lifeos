@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { mutate } from "swr";
-import { User, Palette, Coins, Trash2, Check, Sun, Moon, Database, Loader2, Download } from "lucide-react";
+import { User, Palette, Coins, Trash2, Check, Sun, Moon, Database, Loader2, Download, Bell, BellOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
 import { CURRENCY_SYMBOL_KEY } from "@/hooks/useCurrencySymbol";
 import { useDataExport } from "@/hooks/useDataExport";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
 
 type Settings = {
   display_name: string;
@@ -25,6 +26,7 @@ export default function SettingsPage() {
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [clearedMsg, setClearedMsg] = useState<string | null>(null);
   const { exportData, exporting, error: exportError } = useDataExport();
+  const push = usePushSubscription();
 
   useEffect(() => {
     const savedTheme = typeof window !== "undefined" ? localStorage.getItem(THEME_KEY) : null;
@@ -241,6 +243,49 @@ export default function SettingsPage() {
                     style={{ width: 100 }}
                   />
                 </SettingsRow>
+              </SettingsCard>
+
+              {/* Push notifications */}
+              <SettingsCard
+                icon={push.status === "subscribed" ? Bell : BellOff}
+                title="Push notifications"
+                description="Reminders and overdue alerts, even when LifeOS is closed"
+              >
+                <div style={{ fontSize: 12.5, color: "rgb(var(--text-muted))", marginBottom: 14, lineHeight: 1.55 }}>
+                  {push.status === "unsupported" &&
+                    "Your browser doesn't support push notifications."}
+                  {push.status === "denied" &&
+                    "Notifications are blocked for this site — re-enable them from your browser's site settings, then reload."}
+                  {push.status === "checking" && "Checking status…"}
+                  {push.status === "subscribed" &&
+                    "This device will get a push when a reminder is due or a task goes overdue, checked every few minutes."}
+                  {push.status === "unsubscribed" &&
+                    "Not enabled on this device yet. Each browser/device you use needs its own opt-in."}
+                </div>
+                {(push.status === "subscribed" || push.status === "unsubscribed") && (
+                  <button
+                    onClick={push.status === "subscribed" ? push.unsubscribe : push.subscribe}
+                    disabled={push.working}
+                    className="clear-cache-btn"
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600,
+                      cursor: push.working ? "default" : "pointer", opacity: push.working ? 0.6 : 1,
+                      background: push.status === "subscribed" ? "rgb(var(--surface-2))" : "rgb(var(--accent) / 0.12)",
+                      color: push.status === "subscribed" ? "rgb(var(--text-muted))" : "rgb(var(--accent))",
+                      border: `1px solid ${push.status === "subscribed" ? "rgb(var(--border))" : "rgb(var(--accent) / 0.3)"}`,
+                    }}
+                  >
+                    {push.working ? (
+                      <Loader2 size={13} className="spin" />
+                    ) : push.status === "subscribed" ? (
+                      <BellOff size={13} />
+                    ) : (
+                      <Bell size={13} />
+                    )}
+                    {push.working ? "Working…" : push.status === "subscribed" ? "Turn off on this device" : "Enable on this device"}
+                  </button>
+                )}
+                {push.error && <div style={{ fontSize: 11.5, color: "rgb(var(--danger))", marginTop: 10 }}>{push.error}</div>}
               </SettingsCard>
 
               <SettingsCard icon={Download} title="Export data" description="Download a full backup as JSON">
