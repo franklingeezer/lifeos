@@ -1,134 +1,212 @@
-# LifeOS
+<div align="center">
 
-A personal operating system for everyday life — tasks, projects, calendar, notes, journal, habits, finance, learning, and an AI assistant that reads your actual data, all behind one login.
+# 🧠 LifeOS
 
-Built for one person, by one person. No teams, no workspaces, no sign-up flow — a single-user system, developed in phases, with the database migrations to prove it.
+### Your Personal Operating System
+
+*A single-user, AI-assisted productivity app that connects tasks, projects, notes, journals, habits, finance, learning, media, and ideas into one workspace instead of a pile of disconnected tools.*
+
+---
+
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-green)
+![SWR](https://img.shields.io/badge/Data%20layer-SWR-orange)
+![Status](https://img.shields.io/badge/Status-Active%20Development-success)
+
+</div>
+
+---
+
+# ✨ Vision
+
+LifeOS isn't another to-do app.
+
+It's a personal, single-user operating system that combines productivity, journaling, habits, finance, learning, and AI into one connected workspace — built for one person, running on infrastructure that person actually controls.
+
+Every module works on its own. The goal is for them to increasingly understand each other too, so the system reflects real life instead of a dozen isolated spreadsheets.
+
+---
+
+# 🔐 Security
+
+LifeOS is single-user by design — no public sign-up. Every table is locked down with Postgres Row-Level Security scoped to `auth.uid()`, so even the public API key can't touch another account's data (not that there's meant to be one).
+
+- Real Supabase Auth login, with session-refresh middleware
+- Full forgot-password flow (email reset link → callback → set new password)
+- Rate limiting on every AI route (15 requests / 10 min, shared across all five) so a stray loop can't burn through the Groq quota
+
+---
+
+# 🚀 Features
+
+## Dashboard
+Daily priorities, AI Morning Brief, habit progress, active projects, this week's calendar, finance snapshot, and recent notes — all live data, no mock content.
+
+## Projects
+Project management with status, priority, deadlines, and progress. Linked tasks show up on the project itself, with a live "X of Y done" count alongside the manual progress slider — informational, never overriding your own control.
+
+## Tasks
+Kanban board (swipeable on mobile) and list view, priorities, due dates, subtasks, full-text search, and optional project linking. Command Palette (`Ctrl/Cmd+K`) can create a task instantly from anywhere with `task: ___`.
+
+## Calendar
+Monthly view, event management, color coding.
+
+## Notes
+Markdown notes with folders, tags, pinning, and full-text search. Mobile gets a proper master-detail layout (list → tap → editor, with a back button) instead of squeezing both panes together. Quick-create from the Command Palette with `note: ___`.
+
+## Journal
+Daily entries — Mood, Energy, Stress (custom gradient-track scale, not emoji), Wins, Failures, Lessons, Tomorrow's Goals, Gratitude.
+
+## Habits
+Daily check-in tracking, streaks, longest streak, 30-day success rate, color-coded.
+
+## Finance
+Income, expenses, savings, investments, monthly breakdown, category charts, and a separate Debts & Loans panel (who owes who, settle tracking). Currency symbol is a real Settings-driven value used consistently everywhere, not hard-coded.
+
+## Learning
+Track courses, study hours, completion status, certificates.
+
+## Media Vault
+Store images, videos, and documents via Supabase Storage, with tags and captions.
+
+## Idea Vault
+Capture ideas through a real pipeline — **Spark → Developing → Validated → Archived** — with potential rating and tags. A **validated** idea can be converted into a real Project in one click, carrying its title and description over and staying linked to the original idea.
+
+## AI Assistant
+Five focused tools, not one AI dumped into a chat box:
+- **Morning Brief** — a short daily summary with history you can browse
+- **Ask LifeOS** — natural-language search across your own data
+- **Review** — weekly/monthly summaries of what actually happened
+- **Prioritize** — suggests task priority changes you review and apply (or don't)
+- **Journal Insights** — finds real patterns across entries, including habit-mood correlations *only* when there's genuinely enough data to say so honestly
+
+## Analytics
+Live charts across tasks, finance, habits, projects, and ideas — including a **habit ↔ mood correlation** card that compares average mood on days a habit was done vs. skipped, gated behind a minimum sample size so it never shows a misleading pattern from too little data.
+
+## Command Palette
+Global `Ctrl/Cmd+K` search across Tasks, Notes, Projects, Habits, Learning, Idea Vault, and Calendar events — full keyboard navigation, plus inline quick-create commands (`task:`, `note:`) that create something instantly without leaving wherever you are.
+
+## Data Export
+One-click JSON backup of everything — Tasks, Projects, Notes, Habits, Finance, Debts, Calendar, Journal, Learning, Media metadata, and Ideas — independent of Supabase, from Settings.
+
+---
+
+# 🧠 AI Philosophy
+
+> **AI should reduce busywork, not replace thinking — and it should never invent what it doesn't actually know.**
+
+Every LifeOS feature works completely without AI. Where AI is used (Groq, `llama-3.3-70b-versatile`), it's held to a strict grounding standard — Journal Insights, for example, is explicitly forbidden from attributing a mood shift to any cause that isn't literally present in the entry text or habit data for that date. No invented causal stories, no forced patterns from thin data.
+
+---
+
+# 🔗 Deep Module Relationships
+
+LifeOS is gradually moving from "a set of connected pages" toward modules that actually understand each other:
+
+- **Project ↔ Tasks** — link tasks to a project; see linked-task progress on the project itself
+- **Idea Vault → Project** — convert a validated idea into a real project in one click
+- **Journal ↔ Habits ↔ Analytics** — habit completion data feeds both the Analytics correlation chart and the AI's Journal Insights, with matching sample-size honesty between the two
+
+More relationships (Notes ↔ Projects, Calendar ↔ Projects, Tasks ↔ Calendar) are on the roadmap.
+
+---
+
+# 📱 Mobile
+
+Every page works properly at phone width — not just "doesn't break," but actually designed for it: a slide-in nav drawer replaces the desktop rail, Tasks' kanban becomes swipeable with tappable column tabs, Notes/Journal use a real mobile master-detail pattern, and every modal/drawer fits within a narrow screen without overflowing.
+
+---
+
+# 🏗 Architecture
 
 ```
-Next.js 14 · TypeScript · Supabase · PostgreSQL · Tailwind CSS · Groq (Llama 3.3 70B)
+LifeOS
+├── Dashboard
+├── Projects        ←→ Tasks
+├── Tasks
+├── Calendar
+├── Notes
+├── Journal          ←→ Habits ←→ Analytics
+├── Habits
+├── Finance
+│   └── Debts & Loans
+├── Learning
+├── Media Vault
+├── Idea Vault       → Projects
+├── Analytics
+├── Settings
+└── AI Assistant
+    ├── Morning Brief
+    ├── Ask LifeOS
+    ├── Review
+    ├── Prioritize
+    └── Journal Insights
 ```
 
 ---
 
-## Why
+# 🛠 Tech Stack
 
-Most productivity setups are five separate apps that don't talk to each other — a task manager, a notes app, a journal, a budget spreadsheet, a habit tracker. LifeOS puts all of it behind one login, one database, and one design system, so the pieces can eventually inform each other instead of living in isolation.
+**Frontend** — Next.js 14 (App Router), TypeScript, React 18. Styling is mostly inline styles driven by CSS custom properties (theme tokens for dark/light), not a component library — deliberately, for full control over the look.
 
-The AI layer isn't a chatbot bolted on top. Each AI route queries Supabase directly for real data — open tasks, habit logs, journal entries — builds a structured summary, and sends *that* to Groq, not a freeform prompt. The model never invents information it wasn't given.
+**Data layer** — [SWR](https://swr.vercel.app/) with one dedicated hook per resource (`useTasks`, `useFinance`, `useHabits`, etc.), typed data, optimistic updates with rollback on failure, and shared caching so navigating between pages doesn't refetch from scratch.
 
-## Modules
+**Backend** — Supabase (Postgres + Auth + Storage), Row-Level Security on every table.
 
-**Dashboard** — today's priorities, active projects, habit streaks, finance summary, and the AI morning brief, pulled together on load via a single `useDashboardData` hook.
+**AI** — Groq (`llama-3.3-70b-versatile`) via direct API calls from Next.js Route Handlers, with server-side rate limiting.
 
-**Tasks** — Kanban and list views over the same data, drag-to-reorder via a `position` column, subtasks, priority (`low` / `med` / `high`), due dates. Feeds the AI prioritizer.
+**Charts** — Recharts. **Icons** — Lucide.
 
-**Projects** — status (active / completed / archived), progress, deadlines, GitHub or external references. Cross-links to tasks and calendar are on the roadmap but not wired up yet.
+---
 
-**Calendar** — month view combining manually-created events with task due dates and project deadlines in one place.
-
-**Notes** — tags, pinning, search. Indexed by Natural Search alongside everything else.
-
-**Journal** — one entry per day (`entry_date` is unique), capturing mood, energy, stress, wins, failures, lessons, tomorrow's goals, and gratitude. Feeds Journal Insights and the Weekly Review.
-
-**Habits** — daily check-ins, streak calculation (current + longest), completion rate, and a per-habit color for the history view.
-
-**Finance** — income, expenses, savings, investments, and debts, categorized and chartable.
-
-**Learning** — courses and skills with category, progress, and study hours.
-
-**Media Vault** — a private Supabase Storage bucket for images, video, and documents, accessed only via signed URLs — never public.
-
-**Idea Vault** — a lightweight pipeline: `Spark → Developing → Validated → Archived`, with rating, tags, and category per idea.
-
-**Analytics** — Recharts views over task completion, habit performance, mood/energy/stress trends, finance, and the idea pipeline.
-
-## AI Assistant
-
-Five server-side routes under `app/api/`, all calling Groq's `llama-3.3-70b-versatile` directly (not through a client SDK), all sharing one in-memory rate limiter capped at **15 requests per 10-minute window across all five routes combined**.
-
-- **Morning Brief** (`/api/morning-brief`) — pulls overdue tasks, tasks due today/tomorrow, habit streaks, stale projects (no update in 3+ days), and deadlines in the next 7 days into a JSON summary, then asks the model for 3–6 terse bullets. Cached per calendar day in `ai_briefs`; regenerable on demand.
-- **Natural Search** (`/api/natural-search`) — plain-language queries over tasks, notes, projects, and journal entries instead of exact-keyword search.
-- **Task Prioritization** (`/api/prioritize-tasks`) — ranks open tasks using full context (priority, due date, project), not just a date sort.
-- **Journal Insights** (`/api/journal-insights`) — looks for recurring themes across a 30-day, 90-day, or all-time window of entries.
-- **Weekly Review** (`/api/review`) — one route, two modes (`weekly` / `monthly`), rolling up tasks, habits, journal, and finance into a single written summary.
-
-All five are careful about timezone: "today" is computed with `Intl.DateTimeFormat` pinned to `Asia/Dhaka`, not `Date.toISOString()`, which would silently drift a day off between midnight and 6am local time.
-
-## Database
-
-Ten-plus tables, built up through phased, additive SQL migrations rather than one monolithic schema — `supabase/schema.sql` for the Phase 1 base, then `phase2_*` through `phase5_*` layered on top in order. Every table is nullable-`user_id` and RLS-permissive at first (single-developer, pre-auth phase), then locked down in `phase5_auth_lockdown.sql` once a real Supabase Auth user exists — policies scoped to `auth.uid() = user_id`, ownership enforced at the database level rather than trusted to the client.
-
-```
-tasks, habits, habit_logs, projects, events, journal_entries,
-learning_items, idea_vault_items, ai_briefs, ai_reviews,
-ai_journal_insights, app_settings, storage.objects (media bucket)
-```
-
-## Stack
-
-**Frontend** — Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS (CSS-variable-driven theme, dark by default with a light mode), Lucide icons
-**Backend** — Supabase (Postgres, Auth, Storage), Row Level Security
-**State / data** — Zustand for client state, SWR for data fetching, React Hook Form + Zod for forms
-**Charts** — Recharts
-**AI** — Groq API, `llama-3.3-70b-versatile`, called only from server routes — the key never reaches the browser
-
-## Getting started
+# ▶️ Getting Started
 
 ```bash
 git clone https://github.com/franklingeezer/lifeos.git
 cd lifeos
 npm install
-```
-
-Create `.env.local`:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-GROQ_API_KEY=your_groq_api_key
-```
-
-In the Supabase SQL editor, run the migrations in order:
-
-```
-schema.sql → phase2_tasks.sql → phase2b_projects.sql → phase2c_calendar.sql
-→ phase3_journal.sql → phase3b_habits.sql → phase4_learning.sql
-→ phase4c_media.sql → phase4d_idea_vault.sql → phase4e_ai_assistant.sql
-→ phase4f_reviews.sql → phase4g_journal_insights.sql → phase4h_settings.sql
-→ phase5_auth_lockdown.sql
-```
-
-`phase5_auth_lockdown.sql` expects a Supabase Auth user to already exist (Authentication → Users → Add user) — LifeOS has no public sign-up page by design.
-
-```bash
+cp .env.example .env.local   # fill in your Supabase + Groq keys
 npm run dev
 ```
 
-Open `localhost:3000`.
+Run the SQL files in `supabase/` (in numeric/phase order) against your Supabase project before first use — they set up every table, RLS policy, and the auth lockdown. You'll also need to create your one Supabase Auth user manually under Authentication → Users, since there's no public sign-up.
 
-## Structure
+---
 
-```
-app/            routes — one folder per module, plus app/api for the 5 AI routes
-components/     UI, organized to mirror app/ 1:1 by module
-hooks/          data hooks (useTasks, useHabits, useFinance, ...) — own all Supabase calls
-lib/            supabase clients (browser/server/middleware), date.ts, ai-rate-limit.ts
-supabase/       schema.sql + phased migrations, run in order
-middleware.ts   refreshes the Supabase session on every request, including API routes
-```
+# 📈 Roadmap
 
-Each module keeps the same shape: a route in `app/`, its components in `components/<module>`, and a hook in `hooks/` that's the only thing allowed to talk to Supabase for that module. AI routes skip the client SDK entirely and call Groq's REST API directly.
+## Completed
+Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass · currency symbol wired app-wide · AI route rate limiting · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics
 
-## Status
+## In Progress
+Deploying to an always-on host (Vercel) · push notifications for due tasks/events/habits · PWA installability (shares groundwork with push notifications)
 
-Core modules, auth, and all five AI features are live and in daily use. RLS lockdown shipped in `phase5_auth_lockdown.sql` after an earlier phase ran with intentionally permissive policies during single-developer testing.
+## Planned
+More deep module relationships (Notes ↔ Projects, Calendar ↔ Projects, Tasks ↔ Calendar, Learning ↔ Projects) · context-aware AI reasoning across the full connected graph
 
-Open:
-- Cross-module context for AI (e.g. journal-aware task prioritization, project ↔ task ↔ calendar linking)
-- Global search across all modules
-- Gamification / streak rewards
-- Full auth edge-case and security testing pass
+---
 
-## License
+# 🎯 Long-Term Vision
 
-MIT
+The end goal isn't more modules — it's modules that understand each other, so LifeOS can eventually answer something like *"what should I focus on today?"* by actually reasoning over deadlines, project state, habits, and recent journal context together, instead of showing isolated charts per module.
+
+---
+
+# 🤝 Contributing
+
+This is a personal, single-user project — but suggestions and feedback are always welcome via issues.
+
+---
+
+# 📄 License
+
+MIT License
+
+---
+
+<div align="center">
+
+**Built with Next.js, Supabase, TypeScript, and Claude.**
+
+</div>
