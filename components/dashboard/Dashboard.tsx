@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Sun, Moon, StickyNote, Sparkles,
-  Circle, CheckCircle2, FolderKanban, ArrowRight,
+  Circle, CheckCircle2, FolderKanban, ArrowRight, ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import { toLocalISODate } from "@/lib/date";
@@ -65,10 +65,32 @@ export default function Dashboard() {
 
   const doneCount = tasks.filter((t) => t.done).length;
   const taskPct = tasks.length ? doneCount / tasks.length : 0;
+  const [showCompleted, setShowCompleted] = useState(false);
+  // The underlying query has no due-date filter (a task set for next month
+  // shows up here the same as one due today), so "cap the list" is the
+  // safety net that keeps this card from growing unbounded as your total
+  // task count grows over months of using the app — a "today" card
+  // shouldn't scroll.
+  const UNDONE_CAP = 8;
   const habitAvg = habits.length ? habits.reduce((a, h) => a + Math.min(h.pct, 1), 0) / habits.length : 0;
   const systemLoad = Math.round(((taskPct + habitAvg) / 2) * 100);
   const priorityColor = (p: DashboardTask["priority"]) =>
     p === "high" ? "rgb(var(--danger))" : p === "med" ? "rgb(var(--gold))" : "rgb(var(--text-muted))";
+
+  // Defined here (not as a top-level component) so it can close over
+  // priorityColor without needing it passed as a prop — this component
+  // only ever renders inside Dashboard anyway.
+  const TaskRow = ({ t, onClick }: { t: DashboardTask; onClick: () => void }) => (
+    <div
+      onClick={onClick}
+      style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 8px", borderRadius: 10, cursor: "pointer", opacity: t.done ? 0.5 : 1 }}
+    >
+      {t.done ? <CheckCircle2 size={17} color="rgb(var(--accent))" /> : <Circle size={17} color="rgb(var(--text-muted))" />}
+      <span style={{ fontSize: 13.5, textDecoration: t.done ? "line-through" : "none", flex: 1 }}>{t.title}</span>
+      <span style={{ width: 6, height: 6, borderRadius: 99, background: priorityColor(t.priority), flexShrink: 0 }} />
+      {t.tag && <span style={{ fontSize: 11, color: "rgb(var(--text-muted))", minWidth: 90, textAlign: "right" }}>{t.tag}</span>}
+    </div>
+  );
 
   const ringCirc = 2 * Math.PI * 26;
   const ringOffset = ringCirc - (systemLoad / 100) * ringCirc;
@@ -159,7 +181,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>Today's priorities</div>
               <div style={{ fontSize: 12, color: "rgb(var(--text-muted))" }} className="font-mono">
-                {isLoading ? "…" : `${doneCount}/${tasks.length}`}
+                {isLoading ? "…" : `${tasks.filter((t) => !t.done).length} left`}
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -167,18 +189,43 @@ export default function Dashboard() {
               {!isLoading && tasks.length === 0 && (
                 <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>No tasks yet.</div>
               )}
-              {tasks.map((t) => (
-                <div
-                  key={t.id}
-                  onClick={() => toggleTask(t.id, t.done)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 8px", borderRadius: 10, cursor: "pointer", opacity: t.done ? 0.5 : 1 }}
-                >
-                  {t.done ? <CheckCircle2 size={17} color="rgb(var(--accent))" /> : <Circle size={17} color="rgb(var(--text-muted))" />}
-                  <span style={{ fontSize: 13.5, textDecoration: t.done ? "line-through" : "none", flex: 1 }}>{t.title}</span>
-                  <span style={{ width: 6, height: 6, borderRadius: 99, background: priorityColor(t.priority), flexShrink: 0 }} />
-                  {t.tag && <span style={{ fontSize: 11, color: "rgb(var(--text-muted))", minWidth: 90, textAlign: "right" }}>{t.tag}</span>}
-                </div>
-              ))}
+              {(() => {
+                const undone = tasks.filter((t) => !t.done);
+                const done = tasks.filter((t) => t.done);
+                const shownUndone = undone.slice(0, UNDONE_CAP);
+                const hiddenUndoneCount = undone.length - shownUndone.length;
+
+                return (
+                  <>
+                    {shownUndone.map((t) => (
+                      <TaskRow key={t.id} t={t} onClick={() => toggleTask(t.id, t.done)} />
+                    ))}
+                    {hiddenUndoneCount > 0 && (
+                      <Link href="/tasks" style={{ fontSize: 12, color: "rgb(var(--accent))", padding: "6px 8px", textDecoration: "none" }}>
+                        +{hiddenUndoneCount} more in Tasks →
+                      </Link>
+                    )}
+                    {undone.length === 0 && done.length > 0 && !isLoading && (
+                      <div style={{ fontSize: 13, color: "rgb(var(--text-muted))", padding: "6px 8px" }}>All done for now 🎉</div>
+                    )}
+
+                    {done.length > 0 && (
+                      <div style={{ marginTop: 6, borderTop: shownUndone.length > 0 || hiddenUndoneCount > 0 ? "1px solid rgb(var(--border))" : "none", paddingTop: shownUndone.length > 0 || hiddenUndoneCount > 0 ? 6 : 0 }}>
+                        <div
+                          onClick={() => setShowCompleted((s) => !s)}
+                          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 8px", cursor: "pointer", fontSize: 12, color: "rgb(var(--text-muted))" }}
+                        >
+                          <ChevronDown size={13} style={{ transform: showCompleted ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }} />
+                          {done.length} completed
+                        </div>
+                        {showCompleted && done.map((t) => (
+                          <TaskRow key={t.id} t={t} onClick={() => toggleTask(t.id, t.done)} />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 
