@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutGrid, FolderKanban, CheckSquare, Calendar, StickyNote, BookOpen,
   Flame, Wallet, Image as ImageIcon, GraduationCap, Lightbulb, Bot,
-  BarChart3, Settings, ChevronsLeft, ChevronsRight, LogOut, Search, Menu, X, Bell,
+  BarChart3, Settings, ChevronsLeft, ChevronsRight, LogOut, Search, Menu, X, Bell, Inbox,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import CommandPalette from "@/components/shell/CommandPalette";
@@ -15,6 +15,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 
 const NAV = [
   { icon: LayoutGrid, label: "Dashboard", href: "/" },
+  { icon: Inbox, label: "Inbox", href: "/inbox" },
   { icon: FolderKanban, label: "Projects", href: "/projects" },
   { icon: CheckSquare, label: "Tasks", href: "/tasks" },
   { icon: Calendar, label: "Calendar", href: "/calendar" },
@@ -33,6 +34,7 @@ const NAV = [
 export default function Sidebar() {
   const [expanded, setExpanded] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteInitialQuery, setPaletteInitialQuery] = useState<string | undefined>(undefined);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -62,7 +64,18 @@ export default function Sidebar() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
+        setPaletteInitialQuery(undefined);
         setPaletteOpen((open) => !open);
+        return;
+      }
+      // Ctrl/Cmd+Shift+I — per the Inbox doc's "quick capture everywhere"
+      // goal. Opens the same palette (not a separate popup) pre-filled
+      // with the "inbox: " prefix, cursor ready — one shortcut straight
+      // into capture, zero typing of the prefix required.
+      if (e.key.toLowerCase() === "i" && e.shiftKey && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setPaletteInitialQuery("inbox: ");
+        setPaletteOpen(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -314,7 +327,7 @@ export default function Sidebar() {
         </div>
       )}
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} initialQuery={paletteInitialQuery} />
       <NotificationCenter open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     </>
   );

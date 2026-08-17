@@ -10,6 +10,7 @@ import { toLocalISODate } from "@/lib/date";
 import Sidebar from "@/components/shell/Sidebar";
 import { useDashboardData, type DashboardTask } from "@/hooks/useDashboardData";
 import { useCurrencySymbol } from "@/hooks/useCurrencySymbol";
+import InboxQuickCapture from "@/components/inbox/InboxQuickCapture";
 
 const THEME_KEY = "lifeos-theme";
 const WEEK_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -141,6 +142,15 @@ export default function Dashboard() {
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </div>
           </div>
+        </div>
+
+        {/* Dashboard is the highest-traffic page, so it's the natural
+            second entry point (alongside Ctrl/Cmd+Shift+I and the /inbox
+            page itself) for the doc's "quick capture everywhere" goal —
+            no navigating away from whatever you were looking at just to
+            jot something down. */}
+        <div style={{ marginBottom: 22 }}>
+          <InboxQuickCapture placeholder="Quick capture — sort it out later…" />
         </div>
 
         <div className="lifeos-dashboard-grid">

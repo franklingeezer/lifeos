@@ -4,12 +4,13 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, CheckSquare, StickyNote, FolderKanban, Flame,
-  GraduationCap, Lightbulb, Calendar, CornerDownLeft, ArrowUp, ArrowDown, Check,
+  GraduationCap, Lightbulb, Calendar, CornerDownLeft, ArrowUp, ArrowDown, Check, Inbox,
 } from "lucide-react";
 import { useGlobalSearch, type SearchResult, type SearchResultType } from "@/hooks/useGlobalSearch";
 import { parseCommand, type PaletteCommand } from "@/hooks/usePaletteCommand";
 import { useTasks } from "@/hooks/useTasks";
 import { useNotes } from "@/hooks/useNotes";
+import { useInbox } from "@/hooks/useInbox";
 
 const TYPE_META: Record<SearchResultType, { label: string; icon: React.ElementType; color: string }> = {
   task: { label: "Task", icon: CheckSquare, color: "#5EA8A0" },
@@ -26,9 +27,22 @@ type ActionState = "idle" | "creating" | "done" | "error";
 const COMMAND_META: Record<PaletteCommand["type"], { verb: string; noun: string; doneLabel: string; icon: React.ElementType; color: string }> = {
   "create-task": { verb: "Create task", noun: "New task", doneLabel: "Task created", icon: CheckSquare, color: "#5EA8A0" },
   "create-note": { verb: "Create note", noun: "New note", doneLabel: "Note created", icon: StickyNote, color: "#D4A857" },
+  "create-inbox": { verb: "Capture to Inbox", noun: "New capture", doneLabel: "Captured", icon: Inbox, color: "#8AB0D9" },
 };
 
-export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function CommandPalette({
+  open,
+  onClose,
+  initialQuery,
+}: {
+  open: boolean;
+  onClose: () => void;
+  // Pre-fills the input on open — used by the Ctrl/Cmd+Shift+I shortcut
+  // (see Sidebar.tsx) to drop the user straight into "inbox: |" with the
+  // cursor ready to type, instead of making them type the prefix
+  // themselves every single time they want to capture something fast.
+  initialQuery?: string;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -41,6 +55,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   // instantly on the Tasks page too, without any extra wiring.
   const { createTask } = useTasks();
   const { createNote } = useNotes();
+  const { capture } = useInbox();
 
   const command = parseCommand(query);
 
@@ -52,14 +67,20 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   // Reset on open/close so the palette doesn't remember your last search.
   useEffect(() => {
     if (open) {
-      setQuery("");
+      setQuery(initialQuery ?? "");
       setSelectedIndex(0);
       setActionState("idle");
       // Small delay so the input exists in the DOM before we focus it.
-      const t = setTimeout(() => inputRef.current?.focus(), 10);
+      const t = setTimeout(() => {
+        inputRef.current?.focus();
+        // Cursor at the end (after "inbox: ") rather than the browser's
+        // default of selecting/positioning at the start, so typing
+        // continues naturally from where the prefix left off.
+        inputRef.current?.setSelectionRange(inputRef.current.value.length, inputRef.current.value.length);
+      }, 10);
       return () => clearTimeout(t);
     }
-  }, [open]);
+  }, [open, initialQuery]);
 
   // Keep selection in bounds whenever the result set changes size.
   useEffect(() => {
@@ -85,6 +106,8 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         await createTask({ title: command.text, category: null, priority: "med", due_date: null });
       } else if (command.type === "create-note") {
         await createNote(command.text);
+      } else if (command.type === "create-inbox") {
+        await capture(command.text);
       }
       setActionState("done");
       setTimeout(() => onClose(), 700);
@@ -151,7 +174,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search, or try 'task: ___' / 'note: ___'…"
+            placeholder="Search, or try 'task: ___' / 'note: ___' / 'inbox: ___'…"
             style={{
               flex: 1, background: "transparent", border: "none", outline: "none",
               color: "rgb(var(--text))", fontSize: 14.5,
@@ -202,24 +225,27 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                 Type at least 2 characters to search across your workspace.
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {(["create-task", "create-note"] as const).map((type) => (
-                  <div
-                    key={type}
-                    onClick={() => {
-                      setQuery(type === "create-task" ? "task: " : "note: ");
-                      inputRef.current?.focus();
-                    }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 9, cursor: "pointer",
-                      border: `1px solid ${COMMAND_META[type].color}33`,
-                    }}
-                  >
-                    <kbd style={{ ...kbdStyle, color: COMMAND_META[type].color, borderColor: `${COMMAND_META[type].color}4D` }}>
-                      {type === "create-task" ? "task:" : "note:"}
-                    </kbd>
-                    <span style={{ fontSize: 12, color: "rgb(var(--text-muted))" }}>{COMMAND_META[type].verb.toLowerCase()} instantly</span>
-                  </div>
-                ))}
+                {(["create-task", "create-note", "create-inbox"] as const).map((type) => {
+                  const prefix = type === "create-task" ? "task: " : type === "create-note" ? "note: " : "inbox: ";
+                  return (
+                    <div
+                      key={type}
+                      onClick={() => {
+                        setQuery(prefix);
+                        inputRef.current?.focus();
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 9, cursor: "pointer",
+                        border: `1px solid ${COMMAND_META[type].color}33`,
+                      }}
+                    >
+                      <kbd style={{ ...kbdStyle, color: COMMAND_META[type].color, borderColor: `${COMMAND_META[type].color}4D` }}>
+                        {prefix.trim()}
+                      </kbd>
+                      <span style={{ fontSize: 12, color: "rgb(var(--text-muted))" }}>{COMMAND_META[type].verb.toLowerCase()} instantly</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
