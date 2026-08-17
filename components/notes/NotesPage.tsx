@@ -164,7 +164,13 @@ export default function NotesPage() {
                   onChange={(e) => scheduleSave(active.id, { title: e.target.value })}
                   placeholder="Untitled note"
                   className="font-display"
-                  style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "rgb(var(--text))", fontSize: 21, fontWeight: 500 }}
+                  // minWidth: 0 overrides the flex item default of min-width:
+                  // auto — without it, a text input's browser-default
+                  // intrinsic width wins over flex:1 on narrow screens,
+                  // pushing the pin/preview/delete icon group off-screen to
+                  // the right (same underlying CSS quirk as Calendar's grid
+                  // columns, just flexbox's version of it).
+                  style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "rgb(var(--text))", fontSize: 21, fontWeight: 500 }}
                 />
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                   <span style={{ fontSize: 11, color: "rgb(var(--text-muted))", marginRight: 4 }}>

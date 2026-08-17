@@ -66,9 +66,17 @@ export default function NotificationCenter({ open, onClose }: { open: boolean; o
   // Re-sync every time the panel is actually opened, not just on app load —
   // catches anything that's become overdue since the last check without
   // needing a page refresh.
+  // Re-sync once whenever the panel is actually opened — NOT on every
+  // re-render. `sync` is deliberately left out of the dependency array:
+  // it calls mutate() internally, which can hand back a new function
+  // reference on each cache update, and including it here would create a
+  // self-triggering loop (sync -> mutate -> new `sync` reference -> effect
+  // fires again -> forever). Same reasoning as the equivalent effect in
+  // Sidebar.tsx.
   useEffect(() => {
     if (open) sync();
-  }, [open, sync]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open) {

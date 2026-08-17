@@ -98,12 +98,19 @@ export default function CalendarPage() {
           <div style={{ fontSize: 13, color: "rgb(var(--text-muted))" }}>Loading calendar…</div>
         ) : (
           <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6, marginBottom: 6 }}>
               {WEEKDAYS.map((d, i) => (
                 <div key={i} style={{ textAlign: "center", fontSize: 11, color: "rgb(var(--text-muted))", fontWeight: 600 }}>{d}</div>
               ))}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gridAutoRows: "1fr", gap: 6 }}>
+            {/* minmax(0, 1fr) — not just 1fr — so a track can shrink below its
+                content's natural width. Plain 1fr has an implicit min-width:
+                auto, which means an unbreakable event label (whiteSpace:
+                nowrap on .cal-chip) sets a column's minimum size to its full
+                unwrapped text width, pushing the whole grid past the screen
+                edge on narrow viewports before the chip's own ellipsis rule
+                ever gets a chance to apply. */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gridAutoRows: "1fr", gap: 6 }}>
               {grid.map((date, i) => {
                 const iso = toISODate(date);
                 const inMonth = date.getMonth() === monthDate.getMonth();
