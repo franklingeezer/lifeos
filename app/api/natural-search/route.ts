@@ -4,7 +4,7 @@ import { checkAIRateLimit } from "@/lib/ai-rate-limit";
 
 export const dynamic = "force-dynamic";
 
-const MODEL = "llama-3.3-70b-versatile";
+const MODEL = "openai/gpt-oss-120b"; // llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; this is Groq's recommended replacement
 const MAX_ITEMS_PER_TYPE = 120;
 const SNIPPET_LENGTH = 280;
 
@@ -123,7 +123,10 @@ Rules:
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 1200,
+      // See journal-insights/route.ts for why max_tokens is generous and
+      // reasoning_effort is "low" — same GPT-OSS empty-content risk applies here.
+      max_tokens: 1500,
+      reasoning_effort: "low",
       temperature: 0.2,
       response_format: { type: "json_object" },
       messages: [

@@ -5,7 +5,7 @@ import { toLocalISODate as isoDate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
-const MODEL = "llama-3.3-70b-versatile";
+const MODEL = "openai/gpt-oss-120b"; // llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; this is Groq's recommended replacement
 const DEFAULT_USER_NAME = "Chief";
 
 function periodFor(type: "weekly" | "monthly") {
@@ -176,7 +176,10 @@ Rules:
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: type === "monthly" ? 900 : 650,
+      // See journal-insights/route.ts for why max_tokens is generous and
+      // reasoning_effort is "low" — same GPT-OSS empty-content risk applies here.
+      max_tokens: type === "monthly" ? 1500 : 1200,
+      reasoning_effort: "low",
       temperature: 0.4,
       messages: [
         { role: "system", content: systemPrompt },

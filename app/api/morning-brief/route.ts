@@ -5,9 +5,12 @@ import { todayISO, toLocalISODate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
-// Groq free tier — Llama 3.3 70B is plenty for a short summarization task
-// like this. Swap to "llama-3.1-8b-instant" for an even faster/cheaper option.
-const MODEL = "llama-3.3-70b-versatile";
+// Groq deprecated llama-3.3-70b-versatile on 2026-06-17 (along with
+// llama-3.1-8b-instant, its "faster/cheaper" sibling this comment used to
+// point to) — both now 404 with model_not_found. openai/gpt-oss-120b is
+// Groq's recommended replacement; openai/gpt-oss-20b is the faster/cheaper
+// swap if this ever needs to be leaner.
+const MODEL = "openai/gpt-oss-120b";
 
 // Swap this if the brief should address someone else.
 // Fallback if app_settings has no row yet — actual name comes from Settings.
@@ -158,7 +161,10 @@ Rules:
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 400,
+      // See journal-insights/route.ts for why max_tokens is generous and
+      // reasoning_effort is "low" — same GPT-OSS empty-content risk applies here.
+      max_tokens: 800,
+      reasoning_effort: "low",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

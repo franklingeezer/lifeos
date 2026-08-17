@@ -5,7 +5,7 @@ import { toLocalISODate as isoDate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
-const MODEL = "llama-3.3-70b-versatile";
+const MODEL = "openai/gpt-oss-120b"; // llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; this is Groq's recommended replacement
 
 function daysBetween(a: Date, b: Date) {
   return Math.round((a.getTime() - b.getTime()) / (1000 * 60 * 60 * 24));
@@ -96,7 +96,11 @@ Rules:
     },
     body: JSON.stringify({
       model: MODEL,
+      // See journal-insights/route.ts for why reasoning_effort is "low" —
+      // same GPT-OSS empty-content risk applies here. This route already
+      // had generous headroom (2000), so keeping it as-is is fine.
       max_tokens: 2000,
+      reasoning_effort: "low",
       temperature: 0.2,
       response_format: { type: "json_object" },
       messages: [

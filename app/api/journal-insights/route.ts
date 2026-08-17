@@ -5,7 +5,7 @@ import { toLocalISODate as isoDate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
-const MODEL = "llama-3.3-70b-versatile";
+const MODEL = "openai/gpt-oss-120b"; // llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; this is Groq's recommended replacement
 const DEFAULT_USER_NAME = "Chief";
 
 type RangeType = "30d" | "90d" | "all";
@@ -167,7 +167,15 @@ Rules:
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 700,
+      // openai/gpt-oss-120b is a reasoning model — it spends tokens on
+      // internal chain-of-thought before writing the actual answer, and
+      // if max_tokens runs out mid-reasoning, content comes back empty
+      // even though the request itself succeeded. reasoning_effort "low"
+      // keeps that overhead small for a task this structured (summarize
+      // given JSON into bullets, no multi-step reasoning needed), and the
+      // higher max_tokens is headroom for larger entry corpora (90d/all-time).
+      max_tokens: 1500,
+      reasoning_effort: "low",
       temperature: 0.15,
       messages: [
         { role: "system", content: systemPrompt },
