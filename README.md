@@ -118,6 +118,16 @@ Every page works properly at phone width — not just "doesn't break," but actua
 
 ---
 
+# 🔔 PWA & Push Notifications
+
+LifeOS installs like a real app — on Android via Chrome's install prompt, on iOS via Safari's "Add to Home Screen" (Apple requires the app to actually be installed before it'll grant push permission, so on iOS notifications only work once it's on your home screen).
+
+- **Offline app shell** — a hand-rolled service worker (not `next-pwa`, kept consistent with the rest of the codebase's "own the code" approach) caches the static shell and shows a proper offline page instead of a browser error when you lose connection. Your actual data is deliberately never cached this way — Supabase reads/writes always go live, so you never see stale personal data offline.
+- **Web Push** — reminders and overdue-task alerts reach you even when LifeOS is closed, via VAPID-signed push and a `push_subscriptions` table (RLS-scoped like everything else). Each browser/device gets its own subscription, manageable from Settings.
+- **Delivery** — a cron-triggered route checks for anything due and pushes it. Vercel's free Hobby plan only allows once-daily cron jobs, so the actual every-few-minutes trigger runs via a free GitHub Actions workflow instead, with Vercel's own cron kept as a once-a-day fallback.
+
+---
+
 # 🏗 Architecture
 
 ```
@@ -170,6 +180,8 @@ cp .env.example .env.local   # fill in your Supabase + Groq keys
 npm run dev
 ```
 
+For Web Push (optional — the app works fully without it), also generate a VAPID keypair with `npx web-push generate-vapid-keys` and add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to `.env.local`. Push notifications only work on a real HTTPS deployment, and delivery needs `CRON_SECRET` plus a scheduled trigger — see `.github/workflows/push-cron.yml`.
+
 Run the SQL files in `supabase/` (in numeric/phase order) against your Supabase project before first use — they set up every table, RLS policy, and the auth lockdown. You'll also need to create your one Supabase Auth user manually under Authentication → Users, since there's no public sign-up.
 
 ---
@@ -177,10 +189,10 @@ Run the SQL files in `supabase/` (in numeric/phase order) against your Supabase 
 # 📈 Roadmap
 
 ## Completed
-Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass · currency symbol wired app-wide · AI route rate limiting · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics
+Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass · currency symbol wired app-wide · AI route rate limiting · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics · deployed to Vercel · installable PWA with offline app-shell caching · Web Push notifications for due reminders and overdue tasks (VAPID + service worker, delivered via a free GitHub Actions cron since Vercel Hobby caps cron to once daily)
 
 ## In Progress
-Deploying to an always-on host (Vercel) · push notifications for due tasks/events/habits · PWA installability (shares groundwork with push notifications)
+Ironing out remaining mobile-width overflow on a couple of pages (Calendar month grid, Notes editor)
 
 ## Planned
 More deep module relationships (Notes ↔ Projects, Calendar ↔ Projects, Tasks ↔ Calendar, Learning ↔ Projects) · context-aware AI reasoning across the full connected graph
