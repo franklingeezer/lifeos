@@ -128,6 +128,15 @@ LifeOS installs like a real app — on Android via Chrome's install prompt, on i
 
 ---
 
+# 📥 Inbox
+
+A universal capture layer, built on the "capture first, organize later" principle: nothing typed into it needs a category up front.
+
+- **Capture anywhere** — a bar on the Dashboard, the `inbox:` prefix in the Command Palette, or the global **Ctrl/Cmd+Shift+I** shortcut, which opens the palette pre-filled and ready to type.
+- **Process, don't presort** — each capture sits unprocessed until you decide what it actually is. A processing drawer converts it into a real Task, Note, Idea, Project, Event, or Reminder, asking only for the one field that type genuinely needs (a due date for a task, a date for an event) — everything else takes a sane default, editable later from the real page.
+- **Traceable history** — a converted item keeps a `→ Task` / `→ Note` tag pointing at what it became, and moves to Processed rather than disappearing.
+- **AI category suggestions are deliberately not in v1** — per the feature's own design doc, Inbox needed to work completely without AI before adding it, to avoid the capture step ever depending on an API call succeeding.
+
 # 🏗 Architecture
 
 ```
@@ -189,13 +198,13 @@ Run the SQL files in `supabase/` (in numeric/phase order) against your Supabase 
 # 📈 Roadmap
 
 ## Completed
-Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass · currency symbol wired app-wide · AI route rate limiting · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics · deployed to Vercel · installable PWA with offline app-shell caching · Web Push notifications for due reminders and overdue tasks (VAPID + service worker, delivered via a free GitHub Actions cron since Vercel Hobby caps cron to once daily)
+Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass, including a fix for Calendar/Notes overflow on narrow screens · currency symbol wired app-wide · AI route rate limiting · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics · deployed to Vercel · installable PWA with offline app-shell caching · Web Push notifications for due reminders and overdue tasks (VAPID + service worker, delivered via a free GitHub Actions cron since Vercel Hobby caps cron to once daily) · per-user Settings (display name/currency no longer shared across accounts) · Inbox — universal quick capture with zero required categorization, a processing drawer to convert a capture into a real Task/Note/Idea/Project/Event/Reminder, and entry points everywhere (dashboard widget, Command Palette `inbox:` prefix, Ctrl/Cmd+Shift+I shortcut) · Dashboard's task list now hides completed items by default instead of showing every task ever created
 
 ## In Progress
-Ironing out remaining mobile-width overflow on a couple of pages (Calendar month grid, Notes editor)
+Nothing active right now
 
 ## Planned
-More deep module relationships (Notes ↔ Projects, Calendar ↔ Projects, Tasks ↔ Calendar, Learning ↔ Projects) · context-aware AI reasoning across the full connected graph
+More deep module relationships (Notes ↔ Projects, Calendar ↔ Projects, Tasks ↔ Calendar, Learning ↔ Projects) · context-aware AI reasoning across the full connected graph · AI category suggestions for Inbox captures (deliberately deferred from the MVP)
 
 ---
 
