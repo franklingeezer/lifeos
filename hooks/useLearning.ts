@@ -17,6 +17,7 @@ export type LearningItem = {
   notes: string | null;
   quiz_score: number | null;
   has_certificate: boolean;
+  project_id: string | null;
 };
 
 const LEARNING_KEY = "learning";
@@ -24,7 +25,7 @@ const LEARNING_KEY = "learning";
 async function fetchLearningItems(supabase: ReturnType<typeof createClient>): Promise<LearningItem[]> {
   const { data, error } = await supabase
     .from("learning_items")
-    .select("id, title, category, status, progress, hours_studied, resource_url, notes, quiz_score, has_certificate")
+    .select("id, title, category, status, progress, hours_studied, resource_url, notes, quiz_score, has_certificate, project_id")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as LearningItem[];

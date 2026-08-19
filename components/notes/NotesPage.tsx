@@ -1,18 +1,20 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  Plus, Search, Pin, Trash2, Eye, Pencil, X, Folder as FolderIcon, ArrowLeft,
+  Plus, Search, Pin, Trash2, Eye, Pencil, X, Folder as FolderIcon, FolderKanban, ArrowLeft,
 } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useNotes, type Note } from "@/hooks/useNotes";
+import { useProjects } from "@/hooks/useProjects";
 
 const stripMd = (s: string) => s.replace(/[#*`_>\-\[\]]/g, "").replace(/\n+/g, " ").trim();
 
 export default function NotesPage() {
   const { notes, isLoading, createNote, updateNote, togglePin, deleteNote } = useNotes();
+  const { projects } = useProjects();
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("all"); // "all" | "pinned" | folder name
@@ -31,6 +33,28 @@ export default function NotesPage() {
   }
 
   const active = notes.find((n) => n.id === activeId) ?? null;
+
+  // Local "draft" state for the two fields that get typed into character by
+  // character. The actual save is debounced 700ms (scheduleSave below), but
+  // the SWR cache that active.title/active.content read from only updates
+  // once that debounced write actually fires — binding the input directly
+  // to active.title meant every keystroke's re-render snapped the input
+  // back to the pre-keystroke value until the debounce caught up, fighting
+  // whatever you'd just typed. Typing into titleDraft/contentDraft instead
+  // is instant and local; scheduleSave still fires in the background on
+  // the same debounce to actually persist it.
+  const [titleDraft, setTitleDraft] = useState("");
+  const [contentDraft, setContentDraft] = useState("");
+
+  useEffect(() => {
+    setTitleDraft(active?.title ?? "");
+    setContentDraft(active?.content ?? "");
+    // Deliberately keyed on active?.id, not the whole active object — an
+    // optimistic update to an unrelated field (project_id, tags, pin)
+    // shouldn't yank focus away from what you're mid-typing by resetting
+    // the draft back to the cache's current value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id]);
 
   const folders = Array.from(new Set(notes.map((n) => n.folder).filter(Boolean))) as string[];
 
@@ -160,8 +184,11 @@ export default function NotesPage() {
                   <ArrowLeft size={16} color="rgb(var(--text-muted))" />
                 </button>
                 <input
-                  value={active.title}
-                  onChange={(e) => scheduleSave(active.id, { title: e.target.value })}
+                  value={titleDraft}
+                  onChange={(e) => {
+                    setTitleDraft(e.target.value);
+                    scheduleSave(active.id, { title: e.target.value });
+                  }}
                   placeholder="Untitled note"
                   className="font-display"
                   // minWidth: 0 overrides the flex item default of min-width:
@@ -198,6 +225,17 @@ export default function NotesPage() {
                     style={{ background: "rgb(var(--surface-2))", border: "1px solid rgb(var(--border))", borderRadius: 6, padding: "3px 8px", fontSize: 11.5, color: "rgb(var(--text))", outline: "none", width: 110 }}
                   />
                 </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <FolderKanban size={12} color="rgb(var(--text-muted))" />
+                  <select
+                    value={active.project_id ?? ""}
+                    onChange={(e) => scheduleSave(active.id, { project_id: e.target.value || null })}
+                    style={{ background: "rgb(var(--surface-2))", border: "1px solid rgb(var(--border))", borderRadius: 6, padding: "3px 8px", fontSize: 11.5, color: "rgb(var(--text))", outline: "none", maxWidth: 140 }}
+                  >
+                    <option value="">No project</option>
+                    {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                   {(active.tags ?? []).map((t) => (
                     <span key={t} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, background: "rgb(var(--surface-2))", padding: "2px 6px", borderRadius: 99, color: "rgb(var(--text-muted))" }}>
@@ -219,8 +257,11 @@ export default function NotesPage() {
             <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px" }}>
               {mode === "edit" ? (
                 <textarea
-                  value={active.content ?? ""}
-                  onChange={(e) => scheduleSave(active.id, { content: e.target.value })}
+                  value={contentDraft}
+                  onChange={(e) => {
+                    setContentDraft(e.target.value);
+                    scheduleSave(active.id, { content: e.target.value });
+                  }}
                   placeholder="Write in Markdown — # headers, **bold**, `code`, ```code blocks```, tables, > quotes…"
                   style={{
                     width: "100%", height: "100%", minHeight: 400, background: "transparent", border: "none", outline: "none",
@@ -229,7 +270,7 @@ export default function NotesPage() {
                 />
               ) : (
                 <div className="md-preview">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{active.content || "*Nothing to preview yet.*"}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{contentDraft || "*Nothing to preview yet.*"}</ReactMarkdown>
                 </div>
               )}
             </div>

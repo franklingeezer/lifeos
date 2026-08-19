@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Plus, X, Search, ExternalLink, Award, Clock } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useLearning, type Status } from "@/hooks/useLearning";
+import { useProjects } from "@/hooks/useProjects";
 
 const STATUS_META: Record<Status, { label: string; bg: string; text: string }> = {
   not_started: { label: "Not started", bg: "rgb(var(--surface-2))", text: "rgb(var(--text-muted))" },
@@ -13,11 +14,12 @@ const STATUS_META: Record<Status, { label: string; bg: string; text: string }> =
 
 const emptyForm = {
   title: "", category: "", status: "in_progress" as Status, progress: 0,
-  hours_studied: "0", resource_url: "", notes: "", quiz_score: "", has_certificate: false,
+  hours_studied: "0", resource_url: "", notes: "", quiz_score: "", has_certificate: false, project_id: "",
 };
 
 export default function LearningPage() {
   const { items, isLoading, createItem, updateItem, deleteItem } = useLearning();
+  const { projects } = useProjects();
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -50,6 +52,7 @@ export default function LearningPage() {
       notes: form.notes.trim() || null,
       quiz_score: form.quiz_score ? parseFloat(form.quiz_score) : null,
       has_certificate: form.has_certificate,
+      project_id: form.project_id || null,
     });
     setForm(emptyForm);
     setShowCreate(false);
@@ -144,6 +147,12 @@ export default function LearningPage() {
             </div>
             <Field label="Title"><input autoFocus value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} style={inputStyle} /></Field>
             <Field label="Category"><input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. AI, Cybersecurity, Books" style={inputStyle} /></Field>
+            <Field label="Project">
+              <select value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })} style={inputStyle}>
+                <option value="">No project</option>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </Field>
             <div style={{ display: "flex", gap: 10 }}>
               <Field label="Status">
                 <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Status })} style={inputStyle}>
@@ -177,6 +186,12 @@ export default function LearningPage() {
           </div>
           <Field label="Title"><input defaultValue={editing.title} onBlur={(e) => updateItem(editing.id, { title: e.target.value })} style={inputStyle} /></Field>
           <Field label="Category"><input defaultValue={editing.category ?? ""} onBlur={(e) => updateItem(editing.id, { category: e.target.value || null })} style={inputStyle} /></Field>
+          <Field label="Project">
+            <select value={editing.project_id ?? ""} onChange={(e) => updateItem(editing.id, { project_id: e.target.value || null })} style={inputStyle}>
+              <option value="">No project</option>
+              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </Field>
           <Field label="Status">
             <select value={editing.status} onChange={(e) => updateItem(editing.id, { status: e.target.value as Status, progress: e.target.value === "completed" ? 100 : editing.progress })} style={inputStyle}>
               <option value="not_started">Not started</option>

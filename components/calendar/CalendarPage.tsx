@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Plus, X, CheckSquare, FolderKanban } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useCalendar, type Event } from "@/hooks/useCalendar";
+import { useProjects } from "@/hooks/useProjects";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const SWATCHES = ["#5EA8A0", "#D4A857", "#C57B6B", "#6C8EF5", "#9B8AC4"];
@@ -25,6 +26,7 @@ function buildMonthGrid(year: number, month: number): Date[] {
 
 export default function CalendarPage() {
   const { events, tasksDue, projectDeadlines, isLoading, createEvent, updateEvent, deleteEvent } = useCalendar();
+  const { projects } = useProjects();
 
   const [monthDate, setMonthDate] = useState(() => { const d = new Date(); d.setDate(1); return d; });
 
@@ -32,6 +34,7 @@ export default function CalendarPage() {
   const [createDate, setCreateDate] = useState("");
   const [createTitle, setCreateTitle] = useState("");
   const [createColor, setCreateColor] = useState(SWATCHES[0]);
+  const [createProjectId, setCreateProjectId] = useState("");
 
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [viewDayISO, setViewDayISO] = useState<string | null>(null);
@@ -56,7 +59,7 @@ export default function CalendarPage() {
 
   const handleCreateEvent = async () => {
     if (!createTitle.trim()) return;
-    await createEvent({ title: createTitle.trim(), date: createDate, color: createColor, all_day: true });
+    await createEvent({ title: createTitle.trim(), date: createDate, color: createColor, all_day: true, project_id: createProjectId || null });
     setShowCreate(false);
   };
 
@@ -195,6 +198,12 @@ export default function CalendarPage() {
             <FormField label="Date">
               <input type="date" value={createDate} onChange={(e) => setCreateDate(e.target.value)} style={inputStyle} />
             </FormField>
+            <FormField label="Project">
+              <select value={createProjectId} onChange={(e) => setCreateProjectId(e.target.value)} style={inputStyle}>
+                <option value="">No project</option>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </FormField>
             <FormField label="Color">
               <div style={{ display: "flex", gap: 8 }}>
                 {SWATCHES.map((c) => (
@@ -229,6 +238,16 @@ export default function CalendarPage() {
             </FormField>
             <FormField label="Date">
               <input type="date" defaultValue={editingEvent.date} onChange={(e) => updateEvent(editingEvent.id, { date: e.target.value })} style={inputStyle} />
+            </FormField>
+            <FormField label="Project">
+              <select
+                value={editingEvent.project_id ?? ""}
+                onChange={(e) => updateEvent(editingEvent.id, { project_id: e.target.value || null })}
+                style={inputStyle}
+              >
+                <option value="">No project</option>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
             </FormField>
             <FormField label="Color">
               <div style={{ display: "flex", gap: 8 }}>

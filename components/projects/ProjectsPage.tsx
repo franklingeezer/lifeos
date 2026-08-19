@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Plus, Search, X, Github, ExternalLink, CheckSquare, Circle, CheckCircle2 } from "lucide-react";
+import { Plus, Search, X, Github, ExternalLink, CheckSquare, Circle, CheckCircle2, StickyNote, Calendar as CalendarIcon, GraduationCap } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useProjects, type Status, type Priority } from "@/hooks/useProjects";
 import { useTasks } from "@/hooks/useTasks";
+import { useNotes } from "@/hooks/useNotes";
+import { useCalendar } from "@/hooks/useCalendar";
+import { useLearning } from "@/hooks/useLearning";
 
 const STATUS_META: Record<Status, { label: string; bg: string; text: string }> = {
   active: { label: "Active", bg: "rgb(var(--accent))", text: "rgb(var(--bg))" },
@@ -24,6 +27,9 @@ const emptyForm = {
 export default function ProjectsPage() {
   const { projects, isLoading, createProject, updateProject, deleteProject } = useProjects();
   const { tasks, moveTask } = useTasks();
+  const { notes } = useNotes();
+  const { events } = useCalendar();
+  const { items: learningItems } = useLearning();
 
   // Grouped once, not per-project on every render — same shared "tasks"
   // SWR cache the Tasks page reads from, so this always reflects the
@@ -38,6 +44,45 @@ export default function ProjectsPage() {
     }
     return map;
   }, [tasks]);
+
+  // Same grouping pattern as tasksByProject — read-only here too; notes
+  // get linked/unlinked from the Notes page's own project picker, not
+  // from this list.
+  const notesByProject = useMemo(() => {
+    const map = new Map<string, typeof notes>();
+    for (const n of notes) {
+      if (!n.project_id) continue;
+      const list = map.get(n.project_id) ?? [];
+      list.push(n);
+      map.set(n.project_id, list);
+    }
+    return map;
+  }, [notes]);
+
+  // Same pattern again — a real linked event (see phase14), distinct from
+  // the auto-shown deadline badge the Calendar page already synthesizes
+  // from projects.deadline directly.
+  const eventsByProject = useMemo(() => {
+    const map = new Map<string, typeof events>();
+    for (const ev of events) {
+      if (!ev.project_id) continue;
+      const list = map.get(ev.project_id) ?? [];
+      list.push(ev);
+      map.set(ev.project_id, list);
+    }
+    return map;
+  }, [events]);
+
+  const learningByProject = useMemo(() => {
+    const map = new Map<string, typeof learningItems>();
+    for (const li of learningItems) {
+      if (!li.project_id) continue;
+      const list = map.get(li.project_id) ?? [];
+      list.push(li);
+      map.set(li.project_id, list);
+    }
+    return map;
+  }, [learningItems]);
 
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -307,6 +352,77 @@ export default function ProjectsPage() {
                 </div>
                 <div style={{ fontSize: 10.5, color: "rgb(var(--text-muted))", marginTop: 6 }}>
                   This is a live view, not the Progress slider above — link or unlink tasks from the Tasks page.
+                </div>
+              </div>
+            );
+          })()}
+
+          {(() => {
+            const linkedNotes = notesByProject.get(editingProject.id) ?? [];
+            if (linkedNotes.length === 0) return null;
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))", marginBottom: 8 }}>
+                  Linked notes — {linkedNotes.length}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgb(var(--surface-2))", borderRadius: 10, padding: 10 }}>
+                  {linkedNotes.map((n) => (
+                    <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <StickyNote size={13} color="rgb(var(--text-muted))" />
+                      <span style={{ fontSize: 12.5, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10.5, color: "rgb(var(--text-muted))", marginTop: 6 }}>
+                  Link or unlink notes from the Notes page.
+                </div>
+              </div>
+            );
+          })()}
+
+          {(() => {
+            const linkedEvents = eventsByProject.get(editingProject.id) ?? [];
+            if (linkedEvents.length === 0) return null;
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))", marginBottom: 8 }}>
+                  Linked events — {linkedEvents.length}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgb(var(--surface-2))", borderRadius: 10, padding: 10 }}>
+                  {linkedEvents.map((ev) => (
+                    <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <CalendarIcon size={13} color="rgb(var(--text-muted))" />
+                      <span style={{ fontSize: 12.5, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
+                      <span style={{ fontSize: 10.5, color: "rgb(var(--text-muted))", flexShrink: 0 }}>{ev.date}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10.5, color: "rgb(var(--text-muted))", marginTop: 6 }}>
+                  Link or unlink events from the Calendar page.
+                </div>
+              </div>
+            );
+          })()}
+
+          {(() => {
+            const linkedLearning = learningByProject.get(editingProject.id) ?? [];
+            if (linkedLearning.length === 0) return null;
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))", marginBottom: 8 }}>
+                  Linked learning — {linkedLearning.length}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgb(var(--surface-2))", borderRadius: 10, padding: 10 }}>
+                  {linkedLearning.map((li) => (
+                    <div key={li.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <GraduationCap size={13} color="rgb(var(--text-muted))" />
+                      <span style={{ fontSize: 12.5, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{li.title}</span>
+                      <span style={{ fontSize: 10.5, color: "rgb(var(--text-muted))", flexShrink: 0 }}>{li.progress}%</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10.5, color: "rgb(var(--text-muted))", marginTop: 6 }}>
+                  Link or unlink from the Learning page.
                 </div>
               </div>
             );

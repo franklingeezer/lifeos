@@ -11,6 +11,7 @@ export type Note = {
   folder: string | null;
   tags: string[] | null;
   pinned: boolean;
+  project_id: string | null;
   updated_at: string;
 };
 
@@ -19,7 +20,7 @@ const NOTES_KEY = "notes";
 async function fetchNotes(supabase: ReturnType<typeof createClient>): Promise<Note[]> {
   const { data, error } = await supabase
     .from("notes")
-    .select("id, title, content, folder, tags, pinned, updated_at")
+    .select("id, title, content, folder, tags, pinned, project_id, updated_at")
     .order("pinned", { ascending: false })
     .order("updated_at", { ascending: false });
 
