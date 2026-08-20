@@ -105,10 +105,10 @@ Every LifeOS feature works completely without AI. Where AI is used (Groq, `llama
 LifeOS is gradually moving from "a set of connected pages" toward modules that actually understand each other:
 
 - **Project ↔ Tasks** — link tasks to a project; see linked-task progress on the project itself
+- **Project ↔ Notes, Project ↔ Calendar Events, Project ↔ Learning** — same link-and-see-back-on-the-project pattern, for whichever module a piece of work actually lives in
+- **Tasks ↔ Calendar** — every task's due date automatically shows up as a badge on the Calendar page; edit the task, not the badge, to change it
 - **Idea Vault → Project** — convert a validated idea into a real project in one click
 - **Journal ↔ Habits ↔ Analytics** — habit completion data feeds both the Analytics correlation chart and the AI's Journal Insights, with matching sample-size honesty between the two
-
-More relationships (Notes ↔ Projects, Calendar ↔ Projects, Tasks ↔ Calendar) are on the roadmap.
 
 ---
 
@@ -199,13 +199,13 @@ Run the SQL files in `supabase/` (in numeric/phase order) against your Supabase 
 # 📈 Roadmap
 
 ## Completed
-Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass · currency symbol wired app-wide · AI route rate limiting · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics · deployed to Vercel · installable PWA with offline app-shell caching · Web Push notifications for due reminders and overdue tasks (VAPID + service worker, delivered via a free GitHub Actions cron since Vercel Hobby caps cron to once daily)
+Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass, including a fix for Calendar/Notes overflow on narrow screens · currency symbol wired app-wide · AI route rate limiting · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics · deployed to Vercel · installable PWA with offline app-shell caching · Web Push notifications for due reminders and overdue tasks (VAPID + service worker, delivered via a free GitHub Actions cron since Vercel Hobby caps cron to once daily) · per-user Settings (display name/currency no longer shared across accounts) · Inbox — universal quick capture with zero required categorization, a processing drawer to convert a capture into a real Task/Note/Idea/Project/Event/Reminder, and entry points everywhere (dashboard widget, Command Palette `inbox:` prefix, Ctrl/Cmd+Shift+I shortcut) · Dashboard's task list now hides completed items by default instead of showing every task ever created · Project ↔ Notes, Project ↔ Calendar Events, Project ↔ Learning (each with a picker on both create and edit, plus a read-only "Linked —" list back on the Project page) · fixed a Notes editor input-lag bug where typing fought the debounced save
 
 ## In Progress
 Nothing active right now
 
 ## Planned
-More deep module relationships (Notes ↔ Projects, Calendar ↔ Projects, Tasks ↔ Calendar, Learning ↔ Projects) · context-aware AI reasoning across the full connected graph
+A deeper Tasks ↔ Calendar link, if ever needed — the current due-date badge is one-directional and read-only; scheduling a task as an actual timed block (not just an all-day badge) would be the next step up, but isn't planned by default · context-aware AI reasoning across the full connected graph · AI category suggestions for Inbox captures (deliberately deferred from the MVP)
 
 ---
 
