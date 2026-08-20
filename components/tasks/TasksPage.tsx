@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Plus, Search, LayoutList, Columns3, X, Trash2, Circle, CheckCircle2, FolderKanban,
 } from "lucide-react";
@@ -33,6 +34,22 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Deep-link from Calendar's task-due chips: /tasks?open=<id> opens that
+  // task's edit view directly instead of making you search for it. The
+  // router.replace afterward strips the param from the URL so navigating
+  // back or refreshing doesn't keep re-triggering it.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (openId) {
+      setEditingId(openId);
+      router.replace(pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [dragOverCol, setDragOverCol] = useState<Status | null>(null);
   const [activeCol, setActiveCol] = useState(0);
   const kanbanRef = useRef<HTMLDivElement>(null);

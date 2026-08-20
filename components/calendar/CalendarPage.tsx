@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus, X, CheckSquare, FolderKanban } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useCalendar, type Event } from "@/hooks/useCalendar";
@@ -27,6 +28,7 @@ function buildMonthGrid(year: number, month: number): Date[] {
 export default function CalendarPage() {
   const { events, tasksDue, projectDeadlines, isLoading, createEvent, updateEvent, deleteEvent } = useCalendar();
   const { projects } = useProjects();
+  const router = useRouter();
 
   const [monthDate, setMonthDate] = useState(() => { const d = new Date(); d.setDate(1); return d; });
 
@@ -150,12 +152,22 @@ export default function CalendarPage() {
                       <div
                         key={`${item.kind}-${item.id}`}
                         className="cal-chip"
-                        onClick={(e) => { e.stopPropagation(); if (item.kind === "event") setEditingEvent(item.ref as Event); }}
-                        title={item.kind !== "event" ? `${item.kind === "task" ? "Task due" : "Project deadline"} — synced, edit it from its own page` : undefined}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (item.kind === "event") setEditingEvent(item.ref as Event);
+                          // Deep-link instead of the old "synced, edit it
+                          // from its own page" dead-end tooltip — this was
+                          // the actual missing half of Tasks<->Calendar:
+                          // Calendar could already SHOW a task's due date,
+                          // but there was no way to act on it from here.
+                          else if (item.kind === "task") router.push(`/tasks?open=${item.id}`);
+                          else if (item.kind === "project") router.push(`/projects?open=${item.id}`);
+                        }}
+                        title={item.kind === "task" ? "Open this task" : item.kind === "project" ? "Open this project" : undefined}
                         style={{
                           fontSize: 10.5, padding: "2px 5px", borderRadius: 5, background: item.color, color: item.kind === "event" ? "rgb(var(--bg))" : "rgb(var(--surface))",
                           display: "flex", alignItems: "center", gap: 3, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
-                          cursor: item.kind === "event" ? "pointer" : "default", opacity: item.kind === "event" ? 1 : 0.85,
+                          cursor: "pointer", opacity: item.kind === "event" ? 1 : 0.85,
                         }}
                       >
                         {item.kind === "task" && <CheckSquare size={9} style={{ flexShrink: 0 }} />}

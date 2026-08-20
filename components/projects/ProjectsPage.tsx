@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Plus, Search, X, Github, ExternalLink, CheckSquare, Circle, CheckCircle2, StickyNote, Calendar as CalendarIcon, GraduationCap } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useProjects, type Status, type Priority } from "@/hooks/useProjects";
@@ -87,6 +88,20 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Deep-link from Calendar's project-deadline chips — same pattern as
+  // TasksPage's ?open=<id> handling.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (openId) {
+      setEditingId(openId);
+      router.replace(pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [form, setForm] = useState(emptyForm);
 
   const editingProject = projects.find((p) => p.id === editingId) ?? null;
