@@ -2,14 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkAIRateLimit } from "@/lib/ai-rate-limit";
 import { todayISO, toLocalISODate } from "@/lib/date";
+import { getProjectGraph, nonEmptyProjectGraph } from "@/lib/ai/project-graph";
 
 export const dynamic = "force-dynamic";
 
-// Groq deprecated llama-3.3-70b-versatile on 2026-06-17 (along with
-// llama-3.1-8b-instant, its "faster/cheaper" sibling this comment used to
-// point to) — both now 404 with model_not_found. openai/gpt-oss-120b is
-// Groq's recommended replacement; openai/gpt-oss-20b is the faster/cheaper
-// swap if this ever needs to be leaner.
+// Groq — gpt-oss-120b is plenty for a short summarization task like this.
+// Swap to "openai/gpt-oss-20b" for a faster/cheaper option.
+//
+// Was "llama-3.3-70b-versatile" until Groq deprecated it (along with
+// llama-3.1-8b-instant) in mid-2026 — gpt-oss-120b is Groq's own
+// recommended replacement for the 70b tier specifically. If this ever
+// breaks again with a "model not found" error, check
+// https://console.groq.com/docs/models for the current lineup before
+// picking a replacement — Groq's model list turns over often enough that
+// this comment itself may go stale.
 const MODEL = "openai/gpt-oss-120b";
 
 // Swap this if the brief should address someone else.
@@ -49,7 +55,7 @@ export async function GET(req: NextRequest) {
   const today = todayISO();
   const supabase = createClient();
 
-  const { data: settingsRow } = await supabase.from("app_settings").select("display_name").eq("id", 1).maybeSingle();
+  const { data: settingsRow } = await supabase.from("app_settings").select("display_name").maybeSingle(); // per-user row, see phase11
   const USER_NAME = settingsRow?.display_name || DEFAULT_USER_NAME;
 
   if (!regenerate) {
@@ -80,7 +86,7 @@ export async function GET(req: NextRequest) {
       supabase.from("tasks").select("title, priority, due_date").eq("done", false).eq("due_date", today),
       supabase.from("tasks").select("title, priority, due_date").eq("done", false).eq("due_date", tomorrowISO),
       supabase.from("habits").select("id, name"),
-      supabase.from("projects").select("name, status, deadline, updated_at").eq("status", "active"),
+      supabase.from("projects").select("id, name, status, deadline, updated_at").eq("status", "active"),
     ]);
 
   let habitStreaks: { name: string; streak: number }[] = [];
@@ -111,6 +117,16 @@ export async function GET(req: NextRequest) {
     .map((p) => ({ name: p.name, deadline: p.deadline, daysUntil: daysBetween(new Date(p.deadline), now) }))
     .filter((p) => p.daysUntil >= 0 && p.daysUntil <= 7);
 
+  // Cross-module context: for each active project, what's actually linked
+  // to it (tasks/notes/events/learning) via the relationships added
+  // earlier. Lets the brief say something like "Cyber Terminal — 3
+  // overdue tasks, meeting Thursday" instead of tasks and projects being
+  // two disconnected lists that happen to share a page.
+  const projectIds = (activeProjects ?? []).map((p) => p.id);
+  const projectNames = new Map((activeProjects ?? []).map((p) => [p.id, p.name]));
+  const graph = await getProjectGraph(supabase, projectIds, today);
+  const projectContext = nonEmptyProjectGraph(graph, projectNames);
+
   const dataSummary = {
     date: today,
     overdue_tasks: (overdueTasks ?? []).map((t) => ({ title: t.title, priority: t.priority, due_date: t.due_date })),
@@ -120,6 +136,17 @@ export async function GET(req: NextRequest) {
     broken_habits: habitStreaks.filter((h) => h.streak === 0).map((h) => h.name),
     stale_projects: staleProjects.map((p) => ({ name: p.name, days_since_update: p.daysSinceUpdate })),
     upcoming_deadlines: upcomingDeadlines,
+    // Only projects with something actually linked appear here — see
+    // nonEmptyProjectGraph's reasoning for why an empty entry is worse
+    // than no entry.
+    project_context: projectContext.map((p) => ({
+      name: p.name,
+      open_tasks: p.open_tasks,
+      overdue_tasks: p.overdue_tasks,
+      linked_notes: p.linked_notes,
+      upcoming_events: p.upcoming_events,
+      linked_learning: p.linked_learning,
+    })),
   };
 
   const systemPrompt = `You write the bullet points for a short daily "Morning Brief" in a personal productivity app called LifeOS.
@@ -139,6 +166,7 @@ Rules:
 - Output ONLY the bullets, 3-6 of them, each starting with "•". No greeting line, no name, no preamble, no closing line, no sign-off — those are added separately, not your job.
 - Each bullet is a short clause or fragment, not a full explanatory sentence. Write "Finish the CI pipeline — due Jul 12" not "You have an overdue task called the CI pipeline which was due on July 12th."
 - Prioritize: overdue first, then due today, then due tomorrow, then anything else notable (streaks, stale projects, upcoming deadlines) — pick the 3-6 most useful items total, don't list everything if there's a lot.
+- project_context connects a project to what's actually linked to it (its own tasks/notes/events/learning, via the app's relationship links — distinct from the plain due-date/deadline fields above). Use it when it adds a genuinely useful connection — e.g. a project with several overdue tasks AND an upcoming linked event is worth one combined bullet ("Cyber Terminal — 3 overdue tasks, standup Thursday") rather than two disconnected ones. Don't force a project_context bullet in if nothing in it is actually noteworthy that day.
 - Skip any category with nothing in it — don't mention it at all, don't say "no tasks due today."
 - Tone: terse, direct, like a text from a sharp assistant who respects your time. Not a chatbot, not customer-service voice. Cut every filler word.
 - Plain text only. No markdown headers, no bold, no numbered lists — bullets only using "•".`;
@@ -161,9 +189,13 @@ Rules:
     },
     body: JSON.stringify({
       model: MODEL,
-      // See journal-insights/route.ts for why max_tokens is generous and
-      // reasoning_effort is "low" — same GPT-OSS empty-content risk applies here.
-      max_tokens: 800,
+      // gpt-oss-120b is a reasoning model — it can spend part of its token
+      // budget on internal "thinking" before writing the visible answer,
+      // so the budget here needs headroom beyond just the target output
+      // length. reasoning_effort: "low" keeps that overhead small for a
+      // task this simple (bullet list from structured JSON, no deep
+      // reasoning actually needed).
+      max_tokens: 700,
       reasoning_effort: "low",
       messages: [
         { role: "system", content: systemPrompt },
@@ -179,9 +211,14 @@ Rules:
   }
 
   const result = await response.json();
-  const bullets = result.choices?.[0]?.message?.content?.trim();
+  const message = result.choices?.[0]?.message;
+  // Fallback: some gpt-oss responses put output in `reasoning` instead of
+  // `content` if the model treated the whole answer as its reasoning
+  // trace. Prefer content when present; only fall back when it's empty.
+  const bullets = (message?.content?.trim() || message?.reasoning?.trim());
 
   if (!bullets) {
+    console.error("Groq returned no usable content or reasoning:", JSON.stringify(result));
     return NextResponse.json({ error: "Groq returned an empty response." }, { status: 500 });
   }
 

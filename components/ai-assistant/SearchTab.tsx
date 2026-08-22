@@ -2,12 +2,12 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Search, FileText, CheckSquare, FolderKanban, BookOpen } from "lucide-react";
+import { Search, FileText, CheckSquare, FolderKanban, BookOpen, Calendar, GraduationCap } from "lucide-react";
 import { useAIAction } from "@/hooks/useAIAction";
 import { AIErrorBox } from "./shared";
 
 type SearchResult = {
-  type: "note" | "task" | "project" | "journal";
+  type: "note" | "task" | "project" | "journal" | "event" | "learning";
   id: string;
   title: string;
   reason: string;
@@ -19,6 +19,8 @@ const TYPE_META: Record<SearchResult["type"], { label: string; icon: React.Eleme
   task: { label: "Task", icon: CheckSquare, href: "/tasks", color: "rgb(var(--accent))" },
   project: { label: "Project", icon: FolderKanban, href: "/projects", color: "rgb(var(--gold))" },
   journal: { label: "Journal", icon: BookOpen, href: "/journal", color: "#8B7FD6" },
+  event: { label: "Event", icon: Calendar, href: "/calendar", color: "#5EA8A0" },
+  learning: { label: "Learning", icon: GraduationCap, href: "/learning", color: "#D48A5F" },
 };
 
 export default function SearchTab() {

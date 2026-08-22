@@ -5,7 +5,7 @@ import { toLocalISODate as isoDate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
-const MODEL = "openai/gpt-oss-120b"; // llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; this is Groq's recommended replacement
+const MODEL = "openai/gpt-oss-120b";
 const DEFAULT_USER_NAME = "Chief";
 
 type RangeType = "30d" | "90d" | "all";
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   const { start, end } = rangeFor(range);
   const supabase = createClient();
 
-  const { data: settingsRow } = await supabase.from("app_settings").select("display_name").eq("id", 1).maybeSingle();
+  const { data: settingsRow } = await supabase.from("app_settings").select("display_name").maybeSingle(); // per-user row, see phase11
   const USER_NAME = settingsRow?.display_name || DEFAULT_USER_NAME;
 
   if (!regenerate) {
@@ -167,14 +167,7 @@ Rules:
     },
     body: JSON.stringify({
       model: MODEL,
-      // openai/gpt-oss-120b is a reasoning model — it spends tokens on
-      // internal chain-of-thought before writing the actual answer, and
-      // if max_tokens runs out mid-reasoning, content comes back empty
-      // even though the request itself succeeded. reasoning_effort "low"
-      // keeps that overhead small for a task this structured (summarize
-      // given JSON into bullets, no multi-step reasoning needed), and the
-      // higher max_tokens is headroom for larger entry corpora (90d/all-time).
-      max_tokens: 1500,
+      max_tokens: 1100,
       reasoning_effort: "low",
       temperature: 0.15,
       messages: [
@@ -191,9 +184,11 @@ Rules:
   }
 
   const result = await response.json();
-  const content = result.choices?.[0]?.message?.content?.trim();
+  const message = result.choices?.[0]?.message;
+  const content = message?.content?.trim() || message?.reasoning?.trim();
 
   if (!content) {
+    console.error("Groq returned no usable content or reasoning:", JSON.stringify(result));
     return NextResponse.json({ error: "Groq returned an empty response." }, { status: 500 });
   }
 

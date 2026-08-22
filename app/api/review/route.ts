@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkAIRateLimit } from "@/lib/ai-rate-limit";
 import { toLocalISODate as isoDate } from "@/lib/date";
+import { getProjectGraph, nonEmptyProjectGraph } from "@/lib/ai/project-graph";
 
 export const dynamic = "force-dynamic";
 
-const MODEL = "openai/gpt-oss-120b"; // llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; this is Groq's recommended replacement
+const MODEL = "openai/gpt-oss-120b";
 const DEFAULT_USER_NAME = "Chief";
 
 function periodFor(type: "weekly" | "monthly") {
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
   const { start, end } = periodFor(type);
   const supabase = createClient();
 
-  const { data: settingsRow } = await supabase.from("app_settings").select("display_name").eq("id", 1).maybeSingle();
+  const { data: settingsRow } = await supabase.from("app_settings").select("display_name").maybeSingle(); // per-user row, see phase11
   const USER_NAME = settingsRow?.display_name || DEFAULT_USER_NAME;
 
   if (!regenerate) {
@@ -85,7 +86,7 @@ export async function GET(req: NextRequest) {
     supabase.from("tasks").select("title, due_date").eq("done", false).lt("due_date", today),
     supabase.from("habits").select("id, name"),
     supabase.from("projects").select("name, status, progress").gte("updated_at", start).lt("updated_at", endExclusiveISO),
-    supabase.from("projects").select("name, status, progress").eq("status", "active"),
+    supabase.from("projects").select("id, name, status, progress").eq("status", "active"),
     supabase.from("finance_transactions").select("type, amount_bdt").gte("occurred_on", start).lt("occurred_on", endExclusiveISO),
     supabase.from("journal_entries").select("entry_date, mood, energy, stress, wins, lessons").gte("entry_date", start).lt("entry_date", endExclusiveISO).order("entry_date"),
     supabase.from("idea_vault_items").select("id").gte("created_at", start).lt("created_at", endExclusiveISO),
@@ -122,6 +123,15 @@ export async function GET(req: NextRequest) {
   const energies = (journalEntries ?? []).map((j) => j.energy);
   const stresses = (journalEntries ?? []).map((j) => j.stress);
 
+  // Same cross-module context as Morning Brief — what's actually linked
+  // to each active project, so the PROJECTS section can say something
+  // like "Cyber Terminal — 60% done, 2 tasks still open" instead of just
+  // a bare progress number.
+  const projectIds = (allActiveProjects ?? []).map((p) => p.id);
+  const projectNames = new Map((allActiveProjects ?? []).map((p) => [p.id, p.name]));
+  const graph = await getProjectGraph(supabase, projectIds, endExclusiveISO);
+  const projectContext = nonEmptyProjectGraph(graph, projectNames);
+
   const dataSummary = {
     period_type: type,
     period_start: start,
@@ -132,6 +142,14 @@ export async function GET(req: NextRequest) {
     habits: habitSummary,
     projects_touched: (touchedProjects ?? []).map((p) => ({ name: p.name, status: p.status, progress: p.progress })),
     all_active_projects: (allActiveProjects ?? []).map((p) => ({ name: p.name, progress: p.progress })),
+    project_context: projectContext.map((p) => ({
+      name: p.name,
+      open_tasks: p.open_tasks,
+      overdue_tasks: p.overdue_tasks,
+      linked_notes: p.linked_notes,
+      upcoming_events: p.upcoming_events,
+      linked_learning: p.linked_learning,
+    })),
     finance: financeTotals,
     journal_entry_count: (journalEntries ?? []).length,
     avg_mood: avgOf(moods),
@@ -151,6 +169,7 @@ Guiding principle: quietly help, don't take over. Reflect what happened — don'
 Rules:
 - Never invent information. Only use what's in the JSON data provided.
 - Structure: a one-line opening (e.g. "Here's how your ${label} went, ${USER_NAME}."), then short plain-text section labels in CAPS (TASKS, HABITS, PROJECTS, FINANCE, JOURNAL — only include sections that have real data), each followed by 1-4 terse bullets using "•".
+- For the PROJECTS section: project_context has what's actually linked to each project (its own open/overdue tasks, notes, upcoming events, learning progress) — richer than the bare progress % in all_active_projects. Prefer it when a project appears in both; e.g. "Cyber Terminal — 60% done, 2 tasks still open" beats a bare progress number. Don't fabricate a connection between two projects just because both have data — only combine facts that project_context or projects_touched actually ties to the same project.
 - Skip any section with nothing meaningful in it. Don't say "no journal entries this ${label}" — just omit the section.
 - Bullets are short fragments, not full sentences. "5 tasks closed, 2 still overdue" not "You managed to complete five tasks this week, though two remain overdue."
 - If mood/energy/stress data exists, mention it briefly as an observation, not a diagnosis — e.g. "mood held steady around 4/5" not "you seem happy."
@@ -176,9 +195,9 @@ Rules:
     },
     body: JSON.stringify({
       model: MODEL,
-      // See journal-insights/route.ts for why max_tokens is generous and
-      // reasoning_effort is "low" — same GPT-OSS empty-content risk applies here.
-      max_tokens: type === "monthly" ? 1500 : 1200,
+      // See morning-brief's comment on reasoning_effort/token headroom —
+      // same reasoning model, same fix.
+      max_tokens: type === "monthly" ? 1400 : 1000,
       reasoning_effort: "low",
       temperature: 0.4,
       messages: [
@@ -195,9 +214,11 @@ Rules:
   }
 
   const result = await response.json();
-  const content = result.choices?.[0]?.message?.content?.trim();
+  const message = result.choices?.[0]?.message;
+  const content = message?.content?.trim() || message?.reasoning?.trim();
 
   if (!content) {
+    console.error("Groq returned no usable content or reasoning:", JSON.stringify(result));
     return NextResponse.json({ error: "Groq returned an empty response." }, { status: 500 });
   }
 
