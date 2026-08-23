@@ -173,7 +173,7 @@ Rules:
 
   const userPrompt = `Here is today's data:\n\n${JSON.stringify(dataSummary, null, 2)}\n\nWrite the bullets.`;
 
-  const rateLimit = checkAIRateLimit();
+  const rateLimit = await checkAIRateLimit(supabase);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: `You're sending AI requests too quickly. Try again in about ${Math.ceil(rateLimit.retryAfterSeconds / 60)} minute(s).` },

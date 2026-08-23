@@ -101,7 +101,7 @@ Rules:
 
   const userPrompt = `Workload context:\n${JSON.stringify(workload, null, 2)}\n\nOpen tasks:\n${JSON.stringify(tasksForPrompt, null, 2)}\n\nReturn the prioritization.`;
 
-  const rateLimit = checkAIRateLimit();
+  const rateLimit = await checkAIRateLimit(supabase);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: `You're sending AI requests too quickly. Try again in about ${Math.ceil(rateLimit.retryAfterSeconds / 60)} minute(s).` },

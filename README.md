@@ -96,7 +96,7 @@ One-click JSON backup of everything — Tasks, Projects, Notes, Habits, Finance,
 
 > **AI should reduce busywork, not replace thinking — and it should never invent what it doesn't actually know.**
 
-Every LifeOS feature works completely without AI. Where AI is used (Groq, `llama-3.3-70b-versatile`), it's held to a strict grounding standard — Journal Insights, for example, is explicitly forbidden from attributing a mood shift to any cause that isn't literally present in the entry text or habit data for that date. No invented causal stories, no forced patterns from thin data.
+Every LifeOS feature works completely without AI. Where AI is used (Groq, `openai/gpt-oss-120b`), it's held to a strict grounding standard — Journal Insights, for example, is explicitly forbidden from attributing a mood shift to any cause that isn't literally present in the entry text or habit data for that date. No invented causal stories, no forced patterns from thin data.
 
 ---
 
@@ -109,6 +109,17 @@ LifeOS is gradually moving from "a set of connected pages" toward modules that a
 - **Tasks ↔ Calendar** — every task's due date automatically shows up as a badge on the Calendar page; edit the task, not the badge, to change it
 - **Idea Vault → Project** — convert a validated idea into a real project in one click
 - **Journal ↔ Habits ↔ Analytics** — habit completion data feeds both the Analytics correlation chart and the AI's Journal Insights, with matching sample-size honesty between the two
+
+---
+
+# 🧭 AI Reasoning Across Modules
+
+The AI Assistant's tools don't just read their own module in isolation anymore — they can see how Projects connect to Tasks, Notes, Calendar Events, and Learning, and use that when it's actually relevant.
+
+- **Morning Brief & Review** — pull a compact "project context" (linked open/overdue tasks, notes, upcoming events, learning progress) for each active project, and combine it into one bullet when genuinely noteworthy — e.g. "Cyber Terminal — 3 overdue tasks, standup Thursday" instead of two disconnected facts. Never forces a mention when a project has nothing linked worth surfacing.
+- **Prioritize** — a task with no due date of its own can still get ranked higher because the *project* it's linked to has a deadline within 14 days; the reason given explains exactly why.
+- **Ask LifeOS** — now searches Calendar Events and Learning items too (previously unsearchable), and tags every result with its linked project, so "stuff about Cyber Terminal" surfaces the task, note, event, and learning item together, not just the project record.
+- **Journal Insights was deliberately left alone.** It has no `project_id` and already holds itself to a stricter grounding rule than the rest of the AI tools — extending it here would either break that rule or need a real redesign, and a well-reasoned feature staying as-is beats forcing symmetry across all 5 tools for its own sake.
 
 ---
 
@@ -174,7 +185,7 @@ LifeOS
 
 **Backend** — Supabase (Postgres + Auth + Storage), Row-Level Security on every table.
 
-**AI** — Groq (`llama-3.3-70b-versatile`) via direct API calls from Next.js Route Handlers, with server-side rate limiting.
+**AI** — Groq (`openai/gpt-oss-120b`) via direct API calls from Next.js Route Handlers, with server-side rate limiting.
 
 **Charts** — Recharts. **Icons** — Lucide.
 
@@ -199,13 +210,13 @@ Run the SQL files in `supabase/` (in numeric/phase order) against your Supabase 
 # 📈 Roadmap
 
 ## Completed
-Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass, including a fix for Calendar/Notes overflow on narrow screens · currency symbol wired app-wide · AI route rate limiting · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics · deployed to Vercel · installable PWA with offline app-shell caching · Web Push notifications for due reminders and overdue tasks (VAPID + service worker, delivered via a free GitHub Actions cron since Vercel Hobby caps cron to once daily) · per-user Settings (display name/currency no longer shared across accounts) · Inbox — universal quick capture with zero required categorization, a processing drawer to convert a capture into a real Task/Note/Idea/Project/Event/Reminder, and entry points everywhere (dashboard widget, Command Palette `inbox:` prefix, Ctrl/Cmd+Shift+I shortcut) · Dashboard's task list now hides completed items by default instead of showing every task ever created · Project ↔ Notes, Project ↔ Calendar Events, Project ↔ Learning (each with a picker on both create and edit, plus a read-only "Linked —" list back on the Project page) · fixed a Notes editor input-lag bug where typing fought the debounced save
+Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass, including a fix for Calendar/Notes overflow on narrow screens · currency symbol wired app-wide · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics · deployed to Vercel · installable PWA with offline app-shell caching · Web Push notifications for due reminders and overdue tasks (VAPID + service worker, delivered via a free GitHub Actions cron since Vercel Hobby caps cron to once daily) · per-user Settings (display name/currency no longer shared across accounts) · Inbox — universal quick capture with zero required categorization, a processing drawer to convert a capture into a real Task/Note/Idea/Project/Event/Reminder, and entry points everywhere (dashboard widget, Command Palette `inbox:` prefix, Ctrl/Cmd+Shift+I shortcut) · Dashboard's task list now hides completed items by default instead of showing every task ever created · Project ↔ Notes, Project ↔ Calendar Events, Project ↔ Learning (each with a picker on both create and edit, plus a read-only "Linked —" list back on the Project page) · fixed a Notes editor input-lag bug where typing fought the debounced save · AI reasoning across the connected module graph (Morning Brief, Review, Prioritize, Ask LifeOS) · migrated off Groq's deprecated `llama-3.3-70b-versatile` to `openai/gpt-oss-120b` · AI route rate limiting rebuilt as per-user and Postgres-backed instead of a single shared in-memory bucket, so it actually works across Vercel's serverless instances and can't let one account lock out another · redesigned login page (rounded card, icon-prefixed inputs, password visibility toggle) and fixed a real hydration bug in it (a literal `"` in inline CSS getting escaped differently server vs. client — fixed via `dangerouslySetInnerHTML`) · fixed a middleware bug that was redirecting `sw.js`/`manifest.webmanifest` to `/login` for logged-out visitors, silently breaking the service worker's ability to ever install for a first-time user
 
 ## In Progress
 Nothing active right now
 
 ## Planned
-A deeper Tasks ↔ Calendar link, if ever needed — the current due-date badge is one-directional and read-only; scheduling a task as an actual timed block (not just an all-day badge) would be the next step up, but isn't planned by default · context-aware AI reasoning across the full connected graph · AI category suggestions for Inbox captures (deliberately deferred from the MVP)
+A deeper Tasks ↔ Calendar link, if ever needed — the current due-date badge is one-directional and read-only; scheduling a task as an actual timed block (not just an all-day badge) would be the next step up, but isn't planned by default · AI category suggestions for Inbox captures (deliberately deferred from the MVP) · a real self-serve sign-up flow and a per-account/Groq-usage strategy, if this ever grows beyond a handful of users
 
 ---
 

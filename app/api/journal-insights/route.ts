@@ -151,7 +151,7 @@ Rules:
 
   const userPrompt = `Journal entries from ${start ?? "the beginning"} to ${end} (${entries.length} entries${hasHabitData ? ", with habit completion data attached per date" : ""}):\n\n${JSON.stringify(corpus, null, 2)}\n\nWrite the insights.`;
 
-  const rateLimit = checkAIRateLimit();
+  const rateLimit = await checkAIRateLimit(supabase);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: `You're sending AI requests too quickly. Try again in about ${Math.ceil(rateLimit.retryAfterSeconds / 60)} minute(s).` },
