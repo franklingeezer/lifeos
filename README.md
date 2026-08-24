@@ -123,6 +123,22 @@ The AI Assistant's tools don't just read their own module in isolation anymore �
 
 ---
 
+# 🧠 LifeOS 2.0 — Context Engine (Phase 1)
+
+LifeOS 2.0 is a 6-phase push to turn the app from a set of connected pages into something that reasons over your actual data before answering. Full plan: Context Engine → Today Brain → Task↔Calendar Scheduling → Project Health → Smart Inbox classification → Ask LifeOS 2.0.
+
+**Phase 1 — done.** `lib/ai/context-engine.ts` exports `buildLifeOSContext()`, one function that assembles Tasks, Projects, Calendar, Habits, Journal, Learning, Finance, and a merged Recent Activity feed into a single typed object — the shared foundation every AI feature above (and everything still to come) should read from, instead of each route hand-rolling its own queries.
+
+- **Section-selectable** — a caller passes `sections: ["tasks", "habits"]` and only those queries run; nothing pays the cost of data it won't use.
+- **Pure data layer** — no Groq calls, no prompts, no caching. Each AI route still owns its own prompt and its own `ai_*` cache table.
+- **`has_time_of_day_data: false`** on the Calendar section is deliberate, not a bug — `events` currently stores date-only, no start/end time, so real "available time block" scheduling (Phase 3) needs a schema change first. Flagged explicitly rather than silently faking a capability that isn't there yet.
+- Also pulled `computeStreak`/`successRate` (`lib/ai/habit-streak.ts`) and `daysBetween` (`lib/date.ts`) out of three routes that had copy-pasted them separately.
+
+**Phase 1b — done.** Morning Brief rebuilt on `buildLifeOSContext()` as proof the engine plugs cleanly into a real, already-shipped feature — verified in the UI to produce the same style of output as before the migration, with the same prompt and cache logic untouched underneath.
+
+---
+
+
 # 📱 Mobile
 
 Every page works properly at phone width — not just "doesn't break," but actually designed for it: a slide-in nav drawer replaces the desktop rail, Tasks' kanban becomes swipeable with tappable column tabs, Notes/Journal use a real mobile master-detail pattern, and every modal/drawer fits within a narrow screen without overflowing.
