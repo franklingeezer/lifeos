@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkAIRateLimit } from "@/lib/ai-rate-limit";
-import { toLocalISODate as isoDate } from "@/lib/date";
+import { toLocalISODate as isoDate, daysBetween } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
 const MODEL = "openai/gpt-oss-120b";
-
-function daysBetween(a: Date, b: Date) {
-  return Math.round((a.getTime() - b.getTime()) / (1000 * 60 * 60 * 24));
-}
 
 export async function POST(_req: NextRequest) {
   if (!process.env.GROQ_API_KEY) {

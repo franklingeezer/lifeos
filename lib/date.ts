@@ -27,3 +27,13 @@ export function addDaysISO(iso: string, n: number, timeZone: string = DEFAULT_TZ
   d.setDate(d.getDate() + n);
   return toLocalISODate(d, timeZone);
 }
+
+/**
+ * Whole-day difference between two Dates (a - b), rounded. Was copy-pasted
+ * identically into morning-brief, review, and prioritize-tasks routes —
+ * pulled out here as part of the Context Engine work so there's one
+ * definition instead of three drifting slowly apart.
+ */
+export function daysBetween(a: Date, b: Date): number {
+  return Math.round((a.getTime() - b.getTime()) / (1000 * 60 * 60 * 24));
+}

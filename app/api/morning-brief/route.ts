@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkAIRateLimit } from "@/lib/ai-rate-limit";
-import { todayISO, toLocalISODate } from "@/lib/date";
+import { todayISO, toLocalISODate, daysBetween } from "@/lib/date";
 import { getProjectGraph, nonEmptyProjectGraph } from "@/lib/ai/project-graph";
+import { computeStreak } from "@/lib/ai/habit-streak";
 
 export const dynamic = "force-dynamic";
 
@@ -21,34 +22,6 @@ const MODEL = "openai/gpt-oss-120b";
 // Swap this if the brief should address someone else.
 // Fallback if app_settings has no row yet — actual name comes from Settings.
 const DEFAULT_USER_NAME = "Chief";
-
-function daysBetween(a: Date, b: Date) {
-  return Math.round((a.getTime() - b.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-// Given a habit's logs (sorted, most recent first), how many consecutive
-// days back from today/yesterday were completed.
-function computeStreak(dates: string[]): number {
-  if (dates.length === 0) return 0;
-  const set = new Set(dates);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Streak counts from today if today's logged, otherwise from yesterday
-  // (so a habit isn't shown as "broken" just because it's still morning).
-  let cursor = new Date(today);
-  if (!set.has(toLocalISODate(cursor))) {
-    cursor.setDate(cursor.getDate() - 1);
-    if (!set.has(toLocalISODate(cursor))) return 0;
-  }
-
-  let streak = 0;
-  while (set.has(toLocalISODate(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
 
 export async function GET(req: NextRequest) {
   const regenerate = req.nextUrl.searchParams.get("regenerate") === "true";

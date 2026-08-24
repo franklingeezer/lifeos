@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { checkAIRateLimit } from "@/lib/ai-rate-limit";
 import { toLocalISODate as isoDate } from "@/lib/date";
 import { getProjectGraph, nonEmptyProjectGraph } from "@/lib/ai/project-graph";
+import { computeStreak } from "@/lib/ai/habit-streak";
 
 export const dynamic = "force-dynamic";
 
@@ -15,24 +16,6 @@ function periodFor(type: "weekly" | "monthly") {
   if (type === "weekly") start.setDate(start.getDate() - 6);
   else start.setDate(start.getDate() - 29);
   return { start: isoDate(start), end: isoDate(end) };
-}
-
-function computeStreak(dates: string[]): number {
-  if (dates.length === 0) return 0;
-  const set = new Set(dates);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let cursor = new Date(today);
-  if (!set.has(isoDate(cursor))) {
-    cursor.setDate(cursor.getDate() - 1);
-    if (!set.has(isoDate(cursor))) return 0;
-  }
-  let streak = 0;
-  while (set.has(isoDate(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
 }
 
 export async function GET(req: NextRequest) {
