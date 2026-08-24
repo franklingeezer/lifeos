@@ -230,7 +230,7 @@ export default function Dashboard() {
           </div>
 
           {/* AI Morning Brief teaser — live */}
-          <Link href="/ai-assistant" style={{ textDecoration: "none", color: "inherit", gridColumn: "span 5" }}>
+          <Link href="/ai-assistant?tab=brief" style={{ textDecoration: "none", color: "inherit", gridColumn: "span 5" }}>
             <div className="lifeos-card" style={{ height: "100%", background: "rgb(var(--surface))", border: "1px solid rgb(var(--border))", borderRadius: 16, padding: 18, display: "flex", flexDirection: "column", justifyContent: "space-between", cursor: "pointer" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 600 }}>

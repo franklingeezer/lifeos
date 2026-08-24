@@ -1,17 +1,20 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sparkles, Search, RefreshCw, ListOrdered, NotebookPen } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Compass, Sparkles, Search, RefreshCw, ListOrdered, NotebookPen } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
+import TodayTab from "./TodayTab";
 import MorningBriefTab from "./MorningBriefTab";
 import SearchTab from "./SearchTab";
 import ReviewTab from "./ReviewTab";
 import PrioritizeTab from "./PrioritizeTab";
 import JournalInsightsTab from "./JournalInsightsTab";
 
-type TabKey = "brief" | "search" | "review" | "prioritize" | "journal";
+type TabKey = "today" | "brief" | "search" | "review" | "prioritize" | "journal";
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
+  { key: "today", label: "Today", icon: Compass },
   { key: "brief", label: "Morning Brief", icon: Sparkles },
   { key: "search", label: "Ask LifeOS", icon: Search },
   { key: "review", label: "Review", icon: RefreshCw },
@@ -19,8 +22,13 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: "journal", label: "Journal Insights", icon: NotebookPen },
 ];
 
+const TAB_KEYS = new Set(TABS.map((t) => t.key));
+
 export default function AIAssistantPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>("brief");
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const initialTab: TabKey = requestedTab && TAB_KEYS.has(requestedTab as TabKey) ? (requestedTab as TabKey) : "today";
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
 
   return (
     <div
@@ -65,6 +73,7 @@ export default function AIAssistantPage() {
             })}
           </div>
 
+          {activeTab === "today" && <TodayTab />}
           {activeTab === "brief" && <MorningBriefTab />}
           {activeTab === "search" && <SearchTab />}
           {activeTab === "review" && <ReviewTab />}

@@ -123,9 +123,15 @@ The AI Assistant's tools don't just read their own module in isolation anymore �
 
 ---
 
+<<<<<<< HEAD
 # 🧠 LifeOS 2.0 — Context Engine (Phase 1)
 
 LifeOS 2.0 is a 6-phase push to turn the app from a set of connected pages into something that reasons over your actual data before answering. Full plan: Context Engine → Today Brain → Task↔Calendar Scheduling → Project Health → Smart Inbox classification → Ask LifeOS 2.0.
+=======
+# 🧠 LifeOS 2.0 — Context Engine & Beyond (Phases 1, 2, 4)
+
+LifeOS 2.0 is a 6-phase push to turn the app from a set of connected pages into something that reasons over your actual data before answering. Full plan: Context Engine → Today Brain → Task↔Calendar Scheduling → Project Health → Smart Inbox classification → Ask LifeOS 2.0. Phase 3 is on hold — see below.
+>>>>>>> 70cd67c (Phase 2 (Today Brain) + Phase 4 (Project Health))
 
 **Phase 1 — done.** `lib/ai/context-engine.ts` exports `buildLifeOSContext()`, one function that assembles Tasks, Projects, Calendar, Habits, Journal, Learning, Finance, and a merged Recent Activity feed into a single typed object — the shared foundation every AI feature above (and everything still to come) should read from, instead of each route hand-rolling its own queries.
 
@@ -136,6 +142,15 @@ LifeOS 2.0 is a 6-phase push to turn the app from a set of connected pages into 
 
 **Phase 1b — done.** Morning Brief rebuilt on `buildLifeOSContext()` as proof the engine plugs cleanly into a real, already-shipped feature — verified in the UI to produce the same style of output as before the migration, with the same prompt and cache logic untouched underneath.
 
+<<<<<<< HEAD
+=======
+**Phase 2 — done. Today Brain**, a new AI Assistant tab (`app/api/today-focus`, `ai_today_focus` table) that merges what used to be two separate features — Morning Brief and Prioritize — into one ordered daily focus plan. Built entirely on `buildLifeOSContext()`, plus Journal for the first time in an AI feature outside Journal Insights (mood trend only, never a diagnosis). Every task/project/habit id the model returns is cross-checked against what it was actually given, same defensive pattern `prioritize-tasks` uses — a hallucinated id gets silently dropped, not shown. Explicitly forbidden from inventing clock times or durations, for the same schema-gap reason as Phase 1's calendar flag. Morning Brief and Prioritize stay in place for now; once Today Brain's proven out in daily use, they'll be retired rather than kept as permanent overlapping tabs.
+
+**Phase 3 — on hold.** Needs `events` to store a real time range, not just a date — see the Phase 1 calendar note above. Revisit once that schema change happens.
+
+**Phase 4 — done. Project Health.** `lib/project-health.ts` scores every active project as Healthy / Slowing / At Risk / Blocked, shown as a badge on each Projects card and in the edit drawer. Deliberately **rule-based, not AI-generated** — a health badge that could flip between states based on model temperature is worse than one that's always reproducible, and the reasoning ("deadline in 3 days, 2 overdue tasks") reads just as clearly as a hand-written fact without any hallucination risk. Uses four of the roadmap's five signals (Progress, Activity, Deadline, Tasks) — Calendar is excluded for the same `has_time_of_day_data` reason Phase 1 and Phase 3 already flag. No new database columns; computed live from data every project already has.
+
+>>>>>>> 70cd67c (Phase 2 (Today Brain) + Phase 4 (Project Health))
 ---
 
 

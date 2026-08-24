@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { todayISO, addDaysISO, daysBetween } from "@/lib/date";
 import { computeStreak, successRate } from "@/lib/ai/habit-streak";
 import { getProjectGraph } from "@/lib/ai/project-graph";
+import { computeProjectHealthFromCounts, type ProjectHealth } from "@/lib/project-health";
 
 /**
  * LifeOS Context Engine — Roadmap Phase 1.
@@ -111,6 +112,8 @@ export interface ProjectSummary {
   progress: number;
   days_since_update: number;
   linked: ProjectLinkedSummary;
+  // Roadmap Phase 4 — deterministic (no AI call), see lib/project-health.ts.
+  health: ProjectHealth | null;
 }
 
 export interface ProjectsContext {
@@ -249,6 +252,16 @@ async function buildProjects(
 
   const active: ProjectSummary[] = rows.map((p) => {
     const linkedEntry = graph.get(p.id as string);
+    const linked = linkedEntry
+      ? {
+          open_tasks: linkedEntry.open_tasks,
+          overdue_tasks: linkedEntry.overdue_tasks,
+          linked_notes: linkedEntry.linked_notes,
+          upcoming_events: linkedEntry.upcoming_events,
+          linked_learning: linkedEntry.linked_learning,
+        }
+      : { open_tasks: 0, overdue_tasks: 0, linked_notes: 0, upcoming_events: [], linked_learning: [] };
+
     return {
       id: p.id,
       name: p.name,
@@ -258,15 +271,12 @@ async function buildProjects(
       days_until_deadline: p.deadline ? daysBetween(new Date(p.deadline), now) : null,
       progress: p.progress,
       days_since_update: daysBetween(now, new Date(p.updated_at)),
-      linked: linkedEntry
-        ? {
-            open_tasks: linkedEntry.open_tasks,
-            overdue_tasks: linkedEntry.overdue_tasks,
-            linked_notes: linkedEntry.linked_notes,
-            upcoming_events: linkedEntry.upcoming_events,
-            linked_learning: linkedEntry.linked_learning,
-          }
-        : { open_tasks: 0, overdue_tasks: 0, linked_notes: 0, upcoming_events: [], linked_learning: [] },
+      linked,
+      health: computeProjectHealthFromCounts(
+        { status: p.status, progress: p.progress, deadline: p.deadline, updated_at: p.updated_at },
+        { openTasks: linked.open_tasks, overdueTasks: linked.overdue_tasks },
+        today
+      ),
     };
   });
 

@@ -17,6 +17,7 @@ export type Project = {
   start_date: string | null;
   deadline: string | null;
   progress: number;
+  updated_at: string;
   github_repo: string | null;
   live_demo: string | null;
 };
@@ -26,7 +27,7 @@ const PROJECTS_KEY = "projects";
 async function fetchProjects(supabase: ReturnType<typeof createClient>): Promise<Project[]> {
   const { data, error } = await supabase
     .from("projects")
-    .select("id, name, description, category, status, priority, start_date, deadline, progress, github_repo, live_demo")
+    .select("id, name, description, category, status, priority, start_date, deadline, progress, updated_at, github_repo, live_demo")
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as Project[];
@@ -40,7 +41,7 @@ export function useProjects() {
   const projects = data ?? [];
 
   const createProject = useCallback(
-    async (payload: Omit<Project, "id" | "progress">) => {
+    async (payload: Omit<Project, "id" | "progress" | "updated_at">) => {
       const { data: created, error } = await supabase
         .from("projects")
         .insert(payload)

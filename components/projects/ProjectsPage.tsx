@@ -9,6 +9,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useNotes } from "@/hooks/useNotes";
 import { useCalendar } from "@/hooks/useCalendar";
 import { useLearning } from "@/hooks/useLearning";
+import { computeProjectHealth, PROJECT_HEALTH_META } from "@/lib/project-health";
 
 const STATUS_META: Record<Status, { label: string; bg: string; text: string }> = {
   active: { label: "Active", bg: "rgb(var(--accent))", text: "rgb(var(--bg))" },
@@ -84,6 +85,19 @@ export default function ProjectsPage() {
     }
     return map;
   }, [learningItems]);
+
+  // Roadmap Phase 4 — Project Health. Pure/deterministic (see
+  // lib/project-health.ts), so it's cheap to recompute for every project
+  // whenever tasks or projects change, same as the other by-project maps
+  // above. Returns null for non-active projects (paused/done/archived
+  // don't need a health read).
+  const healthByProject = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof computeProjectHealth>>();
+    for (const p of projects) {
+      map.set(p.id, computeProjectHealth(p, tasksByProject.get(p.id) ?? []));
+    }
+    return map;
+  }, [projects, tasksByProject]);
 
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -219,12 +233,27 @@ export default function ProjectsPage() {
                   </div>
 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span
-                      className="font-mono"
-                      style={{ fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: meta.bg, color: meta.text }}
-                    >
-                      {meta.label}
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span
+                        className="font-mono"
+                        style={{ fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: meta.bg, color: meta.text }}
+                      >
+                        {meta.label}
+                      </span>
+                      {(() => {
+                        const health = healthByProject.get(p.id);
+                        if (!health) return null;
+                        const hMeta = PROJECT_HEALTH_META[health.state];
+                        return (
+                          <span
+                            className="font-mono"
+                            style={{ fontSize: 10.5, fontWeight: 600, padding: "3px 8px", borderRadius: 99, background: `${hMeta.color}1F`, color: hMeta.color }}
+                          >
+                            {hMeta.label}
+                          </span>
+                        );
+                      })()}
+                    </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       {p.github_repo && (
                         <a href={`https://github.com/${p.github_repo}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "rgb(var(--text-muted))", display: "flex" }}>
@@ -238,6 +267,15 @@ export default function ProjectsPage() {
                       )}
                     </div>
                   </div>
+                  {(() => {
+                    const health = healthByProject.get(p.id);
+                    if (!health || health.state === "healthy") return null;
+                    return (
+                      <div style={{ fontSize: 10.5, color: PROJECT_HEALTH_META[health.state].color, marginTop: 8, opacity: 0.85 }}>
+                        {health.reason}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -341,6 +379,20 @@ export default function ProjectsPage() {
               style={{ width: "100%" }}
             />
           </FormField>
+
+          {(() => {
+            const health = healthByProject.get(editingProject.id);
+            if (!health) return null;
+            const hMeta = PROJECT_HEALTH_META[health.state];
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: "8px 10px", borderRadius: 8, background: `${hMeta.color}14`, border: `1px solid ${hMeta.color}33` }}>
+                <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, color: hMeta.color, flexShrink: 0 }}>
+                  {hMeta.label.toUpperCase()}
+                </span>
+                <span style={{ fontSize: 11.5, color: "rgb(var(--text-muted))" }}>{health.reason}</span>
+              </div>
+            );
+          })()}
 
           {(() => {
             const linked = tasksByProject.get(editingProject.id) ?? [];
