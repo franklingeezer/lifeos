@@ -1,10 +1,6 @@
 {
   "name": "lifeos",
-<<<<<<< HEAD
-  "version": "0.2.0",
-=======
   "version": "0.3.0",
->>>>>>> 70cd67c (Phase 2 (Today Brain) + Phase 4 (Project Health))
   "private": true,
   "scripts": {
     "dev": "next dev",
