@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { CheckSquare, StickyNote, Lightbulb, FolderKanban, Calendar, Bell, X, Loader2, type LucideIcon } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { CheckSquare, StickyNote, Lightbulb, FolderKanban, Calendar, Bell, X, Loader2, Sparkles, type LucideIcon } from "lucide-react";
 import { useTasks } from "@/hooks/useTasks";
 import { useNotes } from "@/hooks/useNotes";
 import { useIdeaVault } from "@/hooks/useIdeaVault";
@@ -19,6 +19,11 @@ const TYPES: { key: ConvertedType; label: string; icon: LucideIcon }[] = [
   { key: "reminder", label: "Reminder", icon: Bell },
 ];
 
+type Confidence = "high" | "medium" | "low";
+type Classification = { suggested_type: ConvertedType; confidence: Confidence; reason: string };
+
+const CONFIDENCE_LABEL: Record<Confidence, string> = { high: "High confidence", medium: "Medium confidence", low: "Low confidence" };
+
 /**
  * The doc's central feature: Inbox → Process → real LifeOS object. Each
  * target type gets exactly the fields it actually needs to exist (a Task
@@ -26,14 +31,27 @@ const TYPES: { key: ConvertedType; label: string; icon: LucideIcon }[] = [
  * not a full creation form. The idea is "get it into the right bucket
  * fast," not "fill out every field right now" — the person can open the
  * real Task/Note/whatever afterward to flesh it out.
+ *
+ * Roadmap Phase 5 — Smart Inbox classification: on open, this fires a
+ * single classify call and, if it resolves before the person has already
+ * clicked a type themselves, pre-selects the suggested type and shows a
+ * "why" banner. Never blocks the UI on it, and any failure (rate limit,
+ * network, Groq hiccup) just leaves the drawer exactly as it was before
+ * this feature existed — default "Task" selected, no error shown — per
+ * the design doc's own rule that the Inbox must work completely without
+ * AI.
  */
 export default function InboxProcessDrawer({ item, onClose }: { item: InboxItem; onClose: () => void }) {
   const [selected, setSelected] = useState<ConvertedType>("task");
+  const [userChangedSelection, setUserChangedSelection] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [eventDate, setEventDate] = useState(new Date().toISOString().slice(0, 10));
   const [scheduledAt, setScheduledAt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [classifying, setClassifying] = useState(false);
+  const [suggestion, setSuggestion] = useState<Classification | null>(null);
 
   const { createTask } = useTasks();
   const { createNote } = useNotes();
@@ -42,6 +60,41 @@ export default function InboxProcessDrawer({ item, onClose }: { item: InboxItem;
   const { createEvent } = useCalendar();
   const { createReminder } = useReminders();
   const { markProcessed } = useInbox();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const classify = async () => {
+      setClassifying(true);
+      try {
+        const res = await fetch("/api/inbox-classify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: item.content }),
+        });
+        if (!res.ok || cancelled) return;
+        const data: Classification = await res.json();
+        if (cancelled) return;
+
+        setSuggestion(data);
+        // Only steer the selection if the person hasn't already clicked
+        // a type themselves while the request was in flight — an AI
+        // suggestion arriving late should never yank the UI out from
+        // under someone who already made their own choice.
+        if (!userChangedSelection) setSelected(data.suggested_type);
+      } catch {
+        // Silent by design — see the Roadmap Phase 5 note above.
+      } finally {
+        if (!cancelled) setClassifying(false);
+      }
+    };
+
+    classify();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
 
   const convert = async () => {
     setSubmitting(true);
@@ -112,18 +165,47 @@ export default function InboxProcessDrawer({ item, onClose }: { item: InboxItem;
         </div>
         <div style={{ fontSize: 15, fontWeight: 600, color: "rgb(var(--text))", marginBottom: 16 }}>{item.content}</div>
 
+        {classifying && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgb(var(--text-muted))", marginBottom: 12 }}>
+            <Loader2 size={12} className="spin" />
+            Thinking about where this fits…
+          </div>
+        )}
+
+        {!classifying && suggestion && (
+          <div
+            style={{
+              display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", borderRadius: 10, marginBottom: 12,
+              background: "rgb(var(--accent) / 0.08)", border: "1px solid rgb(var(--accent) / 0.25)",
+            }}
+          >
+            <Sparkles size={14} color="rgb(var(--accent))" style={{ marginTop: 1, flexShrink: 0 }} />
+            <div style={{ fontSize: 12, color: "rgb(var(--text))" }}>
+              <span style={{ fontWeight: 600 }}>AI suggests: {TYPES.find((t) => t.key === suggestion.suggested_type)?.label}</span>
+              <span style={{ color: "rgb(var(--text-muted))" }}> · {CONFIDENCE_LABEL[suggestion.confidence]}</span>
+              <div style={{ color: "rgb(var(--text-muted))", marginTop: 2 }}>{suggestion.reason}</div>
+            </div>
+          </div>
+        )}
+
         <div style={{ fontSize: 12, color: "rgb(var(--text-muted))", marginBottom: 8 }}>Convert to:</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
           {TYPES.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => setSelected(key)}
+              onClick={() => {
+                setUserChangedSelection(true);
+                setSelected(key);
+              }}
               style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "10px 6px", borderRadius: 10, cursor: "pointer",
+                position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "10px 6px", borderRadius: 10, cursor: "pointer",
                 background: selected === key ? "rgb(var(--accent) / 0.12)" : "rgb(var(--surface-2))",
                 border: `1px solid ${selected === key ? "rgb(var(--accent) / 0.4)" : "rgb(var(--border))"}`,
               }}
             >
+              {suggestion?.suggested_type === key && (
+                <Sparkles size={10} color="rgb(var(--accent))" style={{ position: "absolute", top: 5, right: 5 }} />
+              )}
               <Icon size={16} color={selected === key ? "rgb(var(--accent))" : "rgb(var(--text-muted))"} />
               <span style={{ fontSize: 11, fontWeight: 600, color: selected === key ? "rgb(var(--accent))" : "rgb(var(--text-muted))" }}>{label}</span>
             </button>
