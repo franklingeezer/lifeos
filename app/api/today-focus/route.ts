@@ -100,9 +100,16 @@ export async function GET(req: NextRequest) {
     tasks: candidateTasks,
     projects: candidateProjects,
     habits: candidateHabits,
-    // Day-level only — see calendar.has_time_of_day_data in the Context
-    // Engine. The model is told explicitly below not to invent times.
-    calendar: { events_today: calendar.today_count, upcoming: calendar.upcoming },
+    // Roadmap Phase 3, Part 5 — today_free_blocks/today_busy_minutes are
+    // now real, computed availability (see Context Engine's buildCalendar),
+    // not a placeholder. The model is told below it may cite these exact
+    // windows but still may not invent any time not literally in this array.
+    calendar: {
+      events_today: calendar.today_count,
+      upcoming: calendar.upcoming,
+      today_busy_minutes: calendar.today_busy_minutes,
+      today_free_blocks: calendar.today_free_blocks,
+    },
     // Trend signals only — never a diagnosis, never a cause. Mirrors the
     // grounding standard Journal Insights already holds itself to.
     journal_signal:
@@ -115,8 +122,8 @@ export async function GET(req: NextRequest) {
 
 Rules:
 - Never invent a task, project, habit, or id that isn't in the JSON provided. Every focus item with type "task" must use a real id from the tasks array; type "project" a real id from projects; type "habit" a real id from habits. Use ref_id: null only for type "note" (a general observation with nothing to link to, e.g. a journal-mood signal).
-- Do NOT invent specific clock times ("9:00 AM") or exact durations ("2 hours"). The data has no task-duration estimates and the calendar has no time-of-day data — only day-level event counts. Speak in relative order only: "first", "then", "after that".
-- Order matters: focus_items should be in the sequence you recommend tackling them, most important first. Typically: overdue tasks first, then today's calendar load context, then due-today/due-soon, then a project signal if one is genuinely urgent (approaching deadline or notably stale), then at most one habit signal if a streak is broken and nothing more pressing exists.
+- calendar.today_free_blocks lists today's genuinely open windows (each an exact "HH:MM"-"HH:MM" pair, already computed — not your estimate). You may cite one of these exact windows verbatim (e.g. "free 14:00-16:00, good spot for this") when it's genuinely useful for ordering the plan. Never invent a clock time, window, or duration that isn't literally one of these entries or literally derivable by subtracting two of them — the data still has no per-task duration estimates, so don't claim a task will "take 2 hours." If today_free_blocks is empty, say the day is booked solid rather than inventing a gap.
+- Order matters: focus_items should be in the sequence you recommend tackling them, most important first. Typically: overdue tasks first, then today's calendar load context (citing a free block if one genuinely fits), then due-today/due-soon, then a project signal if one is genuinely urgent (approaching deadline or notably stale), then at most one habit signal if a streak is broken and nothing more pressing exists.
 - 3-6 focus_items total. Don't pad the list — if there are only 2 genuinely worth mentioning, return 2.
 - journal_signal, if present, is a mood trend only (recent average vs. previous average) — never claim to know *why* mood changed. If you reference it, phrase it as an observation, not a diagnosis: "energy's trended down this week" is fine, "you seem stressed about the deadline" is not, since nothing in the data says that.
 - "reason" is short and specific (under 15 words), e.g. "overdue since Aug 14, no other overdue work" not "this seems important."

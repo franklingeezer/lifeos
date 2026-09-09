@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus, X, CheckSquare, FolderKanban } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, CheckSquare, FolderKanban, Clock } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useCalendar, type Event } from "@/hooks/useCalendar";
 import { useProjects } from "@/hooks/useProjects";
@@ -16,6 +16,20 @@ const toISODate = (d: Date) => {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
+
+// Roadmap Phase 3, Part 3 — `time` columns come back from Postgres as
+// "HH:MM:SS" (or "HH:MM" from a fresh <input type="time"> value before
+// it round-trips through the DB). Only the hour/minute matter for
+// display, so this tolerates either.
+function formatTime(t: string | null): string {
+  if (!t) return "";
+  const [hStr, mStr] = t.split(":");
+  const h = parseInt(hStr, 10);
+  if (Number.isNaN(h)) return "";
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${mStr} ${period}`;
+}
 
 function buildMonthGrid(year: number, month: number): Date[] {
   const firstOfMonth = new Date(year, month, 1);
@@ -37,6 +51,9 @@ export default function CalendarPage() {
   const [createTitle, setCreateTitle] = useState("");
   const [createColor, setCreateColor] = useState(SWATCHES[0]);
   const [createProjectId, setCreateProjectId] = useState("");
+  const [createAllDay, setCreateAllDay] = useState(true);
+  const [createStartTime, setCreateStartTime] = useState("");
+  const [createEndTime, setCreateEndTime] = useState("");
 
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [viewDayISO, setViewDayISO] = useState<string | null>(null);
@@ -56,18 +73,46 @@ export default function CalendarPage() {
     setCreateDate(iso);
     setCreateTitle("");
     setCreateColor(SWATCHES[0]);
+    setCreateAllDay(true);
+    setCreateStartTime("");
+    setCreateEndTime("");
     setShowCreate(true);
   };
 
   const handleCreateEvent = async () => {
     if (!createTitle.trim()) return;
-    await createEvent({ title: createTitle.trim(), date: createDate, color: createColor, all_day: true, project_id: createProjectId || null });
+    // A timed event needs both ends of the window — an event with only a
+    // start or only an end isn't a real time block yet, so this holds off
+    // rather than silently saving a half-set one (which context-engine's
+    // available-time calculation, added in Part 4, would otherwise have
+    // to guess a duration for).
+    if (!createAllDay && (!createStartTime || !createEndTime)) return;
+    await createEvent({
+      title: createTitle.trim(),
+      date: createDate,
+      color: createColor,
+      all_day: createAllDay,
+      project_id: createProjectId || null,
+      start_time: createAllDay ? null : createStartTime,
+      end_time: createAllDay ? null : createEndTime,
+    });
     setShowCreate(false);
   };
 
   const handleDeleteEvent = (id: string) => {
     setEditingEvent(null);
     deleteEvent(id);
+  };
+
+  // Edit modal fields are otherwise uncontrolled (defaultValue/defaultChecked
+  // off the `editingEvent` snapshot, same pattern the existing color swatches
+  // already used) — but the all-day toggle needs its own local mirror so
+  // toggling it immediately shows/hides the time inputs instead of waiting
+  // for the modal to be reopened.
+  const updateEditingEvent = (patch: Partial<Event>) => {
+    if (!editingEvent) return;
+    setEditingEvent({ ...editingEvent, ...patch });
+    updateEvent(editingEvent.id, patch);
   };
 
   return (
@@ -122,7 +167,13 @@ export default function CalendarPage() {
                 const isToday = iso === todayISO;
                 const { events: dayEvents, tasks: dayTasks, projects: dayProjects } = itemsForDay(iso);
                 const allItems = [
-                  ...dayEvents.map((e) => ({ kind: "event" as const, id: e.id, label: e.title, color: e.color, ref: e })),
+                  ...dayEvents.map((e) => ({
+                    kind: "event" as const,
+                    id: e.id,
+                    label: e.all_day || !e.start_time ? e.title : `${formatTime(e.start_time)} ${e.title}`,
+                    color: e.color,
+                    ref: e,
+                  })),
                   ...dayTasks.map((t) => ({ kind: "task" as const, id: t.id, label: t.title, color: "rgb(var(--text-muted))", ref: t })),
                   ...dayProjects.map((p) => ({ kind: "project" as const, id: p.id, label: p.name, color: "rgb(var(--danger))", ref: p })),
                 ];
@@ -210,6 +261,22 @@ export default function CalendarPage() {
             <FormField label="Date">
               <input type="date" value={createDate} onChange={(e) => setCreateDate(e.target.value)} style={inputStyle} />
             </FormField>
+            <FormField label="">
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "rgb(var(--text))", cursor: "pointer" }}>
+                <input type="checkbox" checked={createAllDay} onChange={(e) => setCreateAllDay(e.target.checked)} style={{ accentColor: "rgb(var(--accent))" }} />
+                All day
+              </label>
+            </FormField>
+            {!createAllDay && (
+              <div style={{ display: "flex", gap: 10 }}>
+                <FormField label="Starts">
+                  <input type="time" value={createStartTime} onChange={(e) => setCreateStartTime(e.target.value)} style={inputStyle} />
+                </FormField>
+                <FormField label="Ends">
+                  <input type="time" value={createEndTime} onChange={(e) => setCreateEndTime(e.target.value)} style={inputStyle} />
+                </FormField>
+              </div>
+            )}
             <FormField label="Project">
               <select value={createProjectId} onChange={(e) => setCreateProjectId(e.target.value)} style={inputStyle}>
                 <option value="">No project</option>
@@ -251,6 +318,40 @@ export default function CalendarPage() {
             <FormField label="Date">
               <input type="date" defaultValue={editingEvent.date} onChange={(e) => updateEvent(editingEvent.id, { date: e.target.value })} style={inputStyle} />
             </FormField>
+            <FormField label="">
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "rgb(var(--text))", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={editingEvent.all_day}
+                  onChange={(e) => {
+                    const allDay = e.target.checked;
+                    updateEditingEvent(allDay ? { all_day: true, start_time: null, end_time: null } : { all_day: false });
+                  }}
+                  style={{ accentColor: "rgb(var(--accent))" }}
+                />
+                All day
+              </label>
+            </FormField>
+            {!editingEvent.all_day && (
+              <div style={{ display: "flex", gap: 10 }}>
+                <FormField label="Starts">
+                  <input
+                    type="time"
+                    value={editingEvent.start_time ?? ""}
+                    onChange={(e) => updateEditingEvent({ start_time: e.target.value || null })}
+                    style={inputStyle}
+                  />
+                </FormField>
+                <FormField label="Ends">
+                  <input
+                    type="time"
+                    value={editingEvent.end_time ?? ""}
+                    onChange={(e) => updateEditingEvent({ end_time: e.target.value || null })}
+                    style={inputStyle}
+                  />
+                </FormField>
+              </div>
+            )}
             <FormField label="Project">
               <select
                 value={editingEvent.project_id ?? ""}
@@ -302,8 +403,13 @@ export default function CalendarPage() {
                   <div
                     key={e.id}
                     onClick={() => { setEditingEvent(e); setViewDayISO(null); }}
-                    style={{ padding: "8px 10px", borderRadius: 8, background: e.color, color: "rgb(var(--bg))", fontSize: 13, cursor: "pointer" }}
+                    style={{ padding: "8px 10px", borderRadius: 8, background: e.color, color: "rgb(var(--bg))", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
                   >
+                    {!e.all_day && e.start_time && (
+                      <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, opacity: 0.85, flexShrink: 0 }}>
+                        <Clock size={10} /> {formatTime(e.start_time)}
+                      </span>
+                    )}
                     {e.title}
                   </div>
                 ))}
@@ -339,7 +445,7 @@ export default function CalendarPage() {
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))", marginBottom: 5 }}>{label}</div>
+      {label && <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))", marginBottom: 5 }}>{label}</div>}
       {children}
     </div>
   );

@@ -4,7 +4,19 @@ import useSWR from "swr";
 import { useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export type Event = { id: string; title: string; date: string; color: string; all_day: boolean; project_id: string | null };
+// Roadmap Phase 3, Part 2 — start_time/end_time are nullable: an all_day
+// event (the only kind that existed before this phase) simply carries
+// both as null. A timed event sets both. See supabase/phase18_calendar_time_blocks.sql.
+export type Event = {
+  id: string;
+  title: string;
+  date: string;
+  color: string;
+  all_day: boolean;
+  project_id: string | null;
+  start_time: string | null;
+  end_time: string | null;
+};
 export type TaskDue = { id: string; title: string; due_date: string };
 export type ProjectDeadline = { id: string; name: string; deadline: string };
 
@@ -14,7 +26,7 @@ const CALENDAR_KEY = "calendar";
 
 async function fetchCalendarData(supabase: ReturnType<typeof createClient>): Promise<CalendarData> {
   const [{ data: ev }, { data: td }, { data: pd }] = await Promise.all([
-    supabase.from("events").select("id, title, date, color, all_day, project_id"),
+    supabase.from("events").select("id, title, date, color, all_day, project_id, start_time, end_time"),
     supabase.from("tasks").select("id, title, due_date").not("due_date", "is", null),
     supabase.from("projects").select("id, name, deadline").not("deadline", "is", null),
   ]);

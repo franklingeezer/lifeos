@@ -129,21 +129,35 @@ export interface CalendarEventSummary {
   title: string;
   date: string;
   project_id: string | null;
+  all_day: boolean;
+  // Roadmap Phase 3 — null for all-day events, "HH:MM" (or "HH:MM:SS" as
+  // Postgres returns it) for timed ones. See supabase/phase18_calendar_time_blocks.sql.
+  start_time: string | null;
+  end_time: string | null;
 }
 
 export interface CalendarContext {
   today_count: number;
   upcoming: CalendarEventSummary[];
   /**
-   * `events` currently stores only a date + all_day flag, no start/end
-   * time — so "available calendar time" (roadmap item 3) can't be
-   * computed yet at the granularity a real scheduler needs. Surfaced
-   * explicitly here rather than silently returning something that looks
-   * like a real availability signal but isn't — Phase 3 will need a
-   * schema change (start_time/end_time columns) before real time-block
-   * scheduling is possible.
+   * Roadmap Phase 3, Part 4 — now always true: `events` has carried real
+   * start_time/end_time since the phase18 migration, so today_busy_minutes
+   * and today_free_blocks below are genuine computed availability, not a
+   * placeholder. Kept as a field (rather than removed) so any prompt still
+   * checking it doesn't need to change, and so a future caller has an
+   * explicit signal to gate on if a schema ever regresses this.
    */
-  has_time_of_day_data: false;
+  has_time_of_day_data: true;
+  /** Minutes of today inside WORK_WINDOW already covered by timed events (overlapping/back-to-back events merged, not double-counted). */
+  today_busy_minutes: number;
+  /**
+   * Genuinely open windows today within WORK_WINDOW_START–WORK_WINDOW_END,
+   * after subtracting merged busy intervals. An empty array is a real
+   * answer ("no free time left in the window today"), not a "don't know."
+   * All-day events never consume a block — only events with both
+   * start_time and end_time set.
+   */
+  today_free_blocks: { start: string; end: string }[];
 }
 
 export interface HabitSummary {
@@ -289,19 +303,75 @@ async function buildProjects(
   };
 }
 
+// Roadmap Phase 3, Part 4 — the window "available time" is computed
+// within. Fixed for now rather than per-user configurable (there's no
+// settings field for it yet) — 08:00–23:00 errs toward a personal
+// LifeOS's waking hours rather than a 9-to-5 workday, since tasks/habits
+// here already span evenings and weekends.
+const WORK_WINDOW_START = "08:00";
+const WORK_WINDOW_END = "23:00";
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+function minutesToTime(mins: number): string {
+  const h = Math.floor(mins / 60).toString().padStart(2, "0");
+  const m = (mins % 60).toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 async function buildCalendar(supabase: SupabaseClient, today: string, lookaheadDays: number): Promise<CalendarContext> {
   const { data } = await supabase
     .from("events")
-    .select("id, title, date, project_id")
+    .select("id, title, date, project_id, all_day, start_time, end_time")
     .gte("date", today)
     .lte("date", addDaysISO(today, lookaheadDays))
     .order("date", { ascending: true });
 
   const events = (data ?? []) as CalendarEventSummary[];
+
+  // Only today's timed events consume a block — a future day's schedule
+  // can still change before it arrives, so "free time" is only ever
+  // computed for today, not projected forward across the whole lookahead.
+  const windowStart = timeToMinutes(WORK_WINDOW_START);
+  const windowEnd = timeToMinutes(WORK_WINDOW_END);
+
+  const busyIntervals = events
+    .filter((e) => e.date === today && !e.all_day && e.start_time && e.end_time)
+    .map((e) => ({
+      start: Math.max(timeToMinutes(e.start_time!), windowStart),
+      end: Math.min(timeToMinutes(e.end_time!), windowEnd),
+    }))
+    .filter((iv) => iv.end > iv.start)
+    .sort((a, b) => a.start - b.start);
+
+  // Merge overlapping/back-to-back intervals before computing gaps, so
+  // two events sharing a boundary (or genuinely overlapping) don't create
+  // a phantom zero-length "free block" between them.
+  const merged: { start: number; end: number }[] = [];
+  for (const iv of busyIntervals) {
+    const last = merged[merged.length - 1];
+    if (last && iv.start <= last.end) last.end = Math.max(last.end, iv.end);
+    else merged.push({ ...iv });
+  }
+
+  const todayBusyMinutes = merged.reduce((sum, iv) => sum + (iv.end - iv.start), 0);
+
+  const todayFreeBlocks: { start: string; end: string }[] = [];
+  let cursor = windowStart;
+  for (const iv of merged) {
+    if (iv.start > cursor) todayFreeBlocks.push({ start: minutesToTime(cursor), end: minutesToTime(iv.start) });
+    cursor = Math.max(cursor, iv.end);
+  }
+  if (cursor < windowEnd) todayFreeBlocks.push({ start: minutesToTime(cursor), end: minutesToTime(windowEnd) });
+
   return {
     today_count: events.filter((e) => e.date === today).length,
     upcoming: events,
-    has_time_of_day_data: false,
+    has_time_of_day_data: true,
+    today_busy_minutes: todayBusyMinutes,
+    today_free_blocks: todayFreeBlocks,
   };
 }
 
