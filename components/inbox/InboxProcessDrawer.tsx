@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { CheckSquare, StickyNote, Lightbulb, FolderKanban, Calendar, Bell, X, Loader2, Sparkles, type LucideIcon } from "lucide-react";
+import { todayISO } from "@/lib/date";
 import { useTasks } from "@/hooks/useTasks";
 import { useNotes } from "@/hooks/useNotes";
 import { useIdeaVault } from "@/hooks/useIdeaVault";
@@ -43,15 +44,23 @@ const CONFIDENCE_LABEL: Record<Confidence, string> = { high: "High confidence", 
  */
 export default function InboxProcessDrawer({ item, onClose }: { item: InboxItem; onClose: () => void }) {
   const [selected, setSelected] = useState<ConvertedType>("task");
-  const [userChangedSelection, setUserChangedSelection] = useState(false);
   const [dueDate, setDueDate] = useState("");
-  const [eventDate, setEventDate] = useState(new Date().toISOString().slice(0, 10));
+  const [eventDate, setEventDate] = useState(todayISO());
   const [scheduledAt, setScheduledAt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [classifying, setClassifying] = useState(false);
   const [suggestion, setSuggestion] = useState<Classification | null>(null);
+  // Bug fix (LifeOS Changes To Make, #1): a plain useState here is read by
+  // the async classify() closure below, which captures whatever value it
+  // was at the moment the effect ran (mount) — a click on a type button
+  // *after* that point re-renders with a new value, but the in-flight
+  // closure still sees the old one, so a late AI response could silently
+  // override a manual pick. A ref sidesteps the closure entirely: every
+  // read gets whatever was most recently written, regardless of when the
+  // reading closure was created.
+  const manualSelectionRef = useRef(false);
 
   const { createTask } = useTasks();
   const { createNote } = useNotes();
@@ -81,7 +90,7 @@ export default function InboxProcessDrawer({ item, onClose }: { item: InboxItem;
         // a type themselves while the request was in flight — an AI
         // suggestion arriving late should never yank the UI out from
         // under someone who already made their own choice.
-        if (!userChangedSelection) setSelected(data.suggested_type);
+        if (!manualSelectionRef.current) setSelected(data.suggested_type);
       } catch {
         // Silent by design — see the Roadmap Phase 5 note above.
       } finally {
@@ -194,7 +203,7 @@ export default function InboxProcessDrawer({ item, onClose }: { item: InboxItem;
             <button
               key={key}
               onClick={() => {
-                setUserChangedSelection(true);
+                manualSelectionRef.current = true;
                 setSelected(key);
               }}
               style={{

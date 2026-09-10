@@ -54,8 +54,10 @@ export default function CalendarPage() {
   const [createAllDay, setCreateAllDay] = useState(true);
   const [createStartTime, setCreateStartTime] = useState("");
   const [createEndTime, setCreateEndTime] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editTimeError, setEditTimeError] = useState<string | null>(null);
   const [viewDayISO, setViewDayISO] = useState<string | null>(null);
 
   const today = new Date();
@@ -76,17 +78,27 @@ export default function CalendarPage() {
     setCreateAllDay(true);
     setCreateStartTime("");
     setCreateEndTime("");
+    setCreateError(null);
     setShowCreate(true);
   };
 
   const handleCreateEvent = async () => {
     if (!createTitle.trim()) return;
-    // A timed event needs both ends of the window — an event with only a
-    // start or only an end isn't a real time block yet, so this holds off
-    // rather than silently saving a half-set one (which context-engine's
-    // available-time calculation, added in Part 4, would otherwise have
-    // to guess a duration for).
-    if (!createAllDay && (!createStartTime || !createEndTime)) return;
+    // Bug fix (LifeOS Changes To Make, #3): previously only checked both
+    // times were *present*, never that start actually came before end —
+    // a 5:00 PM \u2192 3:00 PM event would have saved without complaint.
+    // All-day events skip this entirely; they carry no times at all.
+    if (!createAllDay) {
+      if (!createStartTime || !createEndTime) {
+        setCreateError("Set both a start and end time, or switch to All day.");
+        return;
+      }
+      if (createStartTime >= createEndTime) {
+        setCreateError("End time must be after start time.");
+        return;
+      }
+    }
+    setCreateError(null);
     await createEvent({
       title: createTitle.trim(),
       date: createDate,
@@ -104,6 +116,16 @@ export default function CalendarPage() {
     deleteEvent(id);
   };
 
+  // Bug fix (LifeOS Changes To Make, #3, edit-modal half): a small wrapper
+  // so every place that opens the edit modal also clears any validation
+  // error left over from a previous edit session — without this, an error
+  // shown while editing one event could still be sitting on screen after
+  // closing and opening a different one.
+  const openEditEvent = (e: Event) => {
+    setEditTimeError(null);
+    setEditingEvent(e);
+  };
+
   // Edit modal fields are otherwise uncontrolled (defaultValue/defaultChecked
   // off the `editingEvent` snapshot, same pattern the existing color swatches
   // already used) — but the all-day toggle needs its own local mirror so
@@ -113,6 +135,31 @@ export default function CalendarPage() {
     if (!editingEvent) return;
     setEditingEvent({ ...editingEvent, ...patch });
     updateEvent(editingEvent.id, patch);
+  };
+
+  // Bug fix (LifeOS Changes To Make, #3): the previous version called
+  // updateEditingEvent directly from each time input's onChange, which
+  // persisted every keystroke\u2014including a half-typed or inverted range\u2014
+  // straight to Supabase with no check at all. This always mirrors what
+  // was typed into the input (so it never fights what you're typing), but
+  // only ever persists to the database once both times are set and
+  // start < end; an incomplete or inverted range stays local-only with an
+  // inline error instead of being saved.
+  const handleEditTimeChange = (field: "start_time" | "end_time", value: string) => {
+    if (!editingEvent) return;
+    const next = { ...editingEvent, [field]: value || null };
+    setEditingEvent(next);
+
+    if (!next.start_time || !next.end_time) {
+      setEditTimeError(null); // still mid-edit, not yet a contradiction worth flagging
+      return;
+    }
+    if (next.start_time >= next.end_time) {
+      setEditTimeError("End time must be after start time.");
+      return;
+    }
+    setEditTimeError(null);
+    updateEvent(editingEvent.id, { [field]: value || null });
   };
 
   return (
@@ -205,7 +252,7 @@ export default function CalendarPage() {
                         className="cal-chip"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (item.kind === "event") setEditingEvent(item.ref as Event);
+                          if (item.kind === "event") openEditEvent(item.ref as Event);
                           // Deep-link instead of the old "synced, edit it
                           // from its own page" dead-end tooltip — this was
                           // the actual missing half of Tasks<->Calendar:
@@ -263,20 +310,21 @@ export default function CalendarPage() {
             </FormField>
             <FormField label="">
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "rgb(var(--text))", cursor: "pointer" }}>
-                <input type="checkbox" checked={createAllDay} onChange={(e) => setCreateAllDay(e.target.checked)} style={{ accentColor: "rgb(var(--accent))" }} />
+                <input type="checkbox" checked={createAllDay} onChange={(e) => { setCreateAllDay(e.target.checked); setCreateError(null); }} style={{ accentColor: "rgb(var(--accent))" }} />
                 All day
               </label>
             </FormField>
             {!createAllDay && (
               <div style={{ display: "flex", gap: 10 }}>
                 <FormField label="Starts">
-                  <input type="time" value={createStartTime} onChange={(e) => setCreateStartTime(e.target.value)} style={inputStyle} />
+                  <input type="time" value={createStartTime} onChange={(e) => { setCreateStartTime(e.target.value); setCreateError(null); }} style={inputStyle} />
                 </FormField>
                 <FormField label="Ends">
-                  <input type="time" value={createEndTime} onChange={(e) => setCreateEndTime(e.target.value)} style={inputStyle} />
+                  <input type="time" value={createEndTime} onChange={(e) => { setCreateEndTime(e.target.value); setCreateError(null); }} style={inputStyle} />
                 </FormField>
               </div>
             )}
+            {createError && <div style={{ fontSize: 12, color: "rgb(var(--danger))", marginTop: -6, marginBottom: 12 }}>{createError}</div>}
             <FormField label="Project">
               <select value={createProjectId} onChange={(e) => setCreateProjectId(e.target.value)} style={inputStyle}>
                 <option value="">No project</option>
@@ -325,6 +373,7 @@ export default function CalendarPage() {
                   checked={editingEvent.all_day}
                   onChange={(e) => {
                     const allDay = e.target.checked;
+                    setEditTimeError(null);
                     updateEditingEvent(allDay ? { all_day: true, start_time: null, end_time: null } : { all_day: false });
                   }}
                   style={{ accentColor: "rgb(var(--accent))" }}
@@ -338,7 +387,7 @@ export default function CalendarPage() {
                   <input
                     type="time"
                     value={editingEvent.start_time ?? ""}
-                    onChange={(e) => updateEditingEvent({ start_time: e.target.value || null })}
+                    onChange={(e) => handleEditTimeChange("start_time", e.target.value)}
                     style={inputStyle}
                   />
                 </FormField>
@@ -346,12 +395,13 @@ export default function CalendarPage() {
                   <input
                     type="time"
                     value={editingEvent.end_time ?? ""}
-                    onChange={(e) => updateEditingEvent({ end_time: e.target.value || null })}
+                    onChange={(e) => handleEditTimeChange("end_time", e.target.value)}
                     style={inputStyle}
                   />
                 </FormField>
               </div>
             )}
+            {editTimeError && <div style={{ fontSize: 12, color: "rgb(var(--danger))", marginTop: -6, marginBottom: 12 }}>{editTimeError}</div>}
             <FormField label="Project">
               <select
                 value={editingEvent.project_id ?? ""}
@@ -402,7 +452,7 @@ export default function CalendarPage() {
                 {dEvents.map((e) => (
                   <div
                     key={e.id}
-                    onClick={() => { setEditingEvent(e); setViewDayISO(null); }}
+                    onClick={() => { openEditEvent(e); setViewDayISO(null); }}
                     style={{ padding: "8px 10px", borderRadius: 8, background: e.color, color: "rgb(var(--bg))", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
                   >
                     {!e.all_day && e.start_time && (
