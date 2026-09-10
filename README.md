@@ -50,7 +50,7 @@ Project management with status, priority, deadlines, and progress. Linked tasks 
 Kanban board (swipeable on mobile) and list view, priorities, due dates, subtasks, full-text search, and optional project linking. Command Palette (`Ctrl/Cmd+K`) can create a task instantly from anywhere with `task: ___`.
 
 ## Calendar
-Monthly view, event management, color coding.
+Monthly view, event management, color coding, optional time-blocked events (all-day by default).
 
 ## Notes
 Markdown notes with folders, tags, pinning, and full-text search. Mobile gets a proper master-detail layout (list → tap → editor, with a back button) instead of squeezing both panes together. Quick-create from the Command Palette with `note: ___`.
@@ -76,7 +76,7 @@ Capture ideas through a real pipeline — **Spark → Developing → Validated �
 ## AI Assistant
 Five focused tools, not one AI dumped into a chat box:
 - **Morning Brief** — a short daily summary with history you can browse
-- **Ask LifeOS** — natural-language search across your own data
+- **Ask LifeOS** — natural-language search across your own data, grounded in the same project-health/deadline/streak/mood signals as the rest of the AI tools for status questions, not just text matching
 - **Review** — weekly/monthly summaries of what actually happened
 - **Prioritize** — suggests task priority changes you review and apply (or don't)
 - **Journal Insights** — finds real patterns across entries, including habit-mood correlations *only* when there's genuinely enough data to say so honestly
@@ -123,24 +123,16 @@ The AI Assistant's tools don't just read their own module in isolation anymore �
 
 ---
 
-# 🧠 LifeOS 2.0 — Context Engine & Beyond (Phases 1, 2, 4)
+# 🧠 LifeOS 2.0 — Context Engine (all 6 phases complete)
 
-LifeOS 2.0 is a 6-phase push to turn the app from a set of connected pages into something that reasons over your actual data before answering. Full plan: Context Engine → Today Brain → Task↔Calendar Scheduling → Project Health → Smart Inbox classification → Ask LifeOS 2.0. Phase 3 is on hold — see below.
+`lib/ai/context-engine.ts` exports `buildLifeOSContext()` — one function that assembles Tasks, Projects, Calendar, Habits, Journal, Learning, Finance, and Recent Activity into a single typed, section-selectable object, so every AI feature reads from the same data instead of hand-rolling its own queries.
 
-**Phase 1 — done.** `lib/ai/context-engine.ts` exports `buildLifeOSContext()`, one function that assembles Tasks, Projects, Calendar, Habits, Journal, Learning, Finance, and a merged Recent Activity feed into a single typed object — the shared foundation every AI feature above (and everything still to come) should read from, instead of each route hand-rolling its own queries.
-
-- **Section-selectable** — a caller passes `sections: ["tasks", "habits"]` and only those queries run; nothing pays the cost of data it won't use.
-- **Pure data layer** — no Groq calls, no prompts, no caching. Each AI route still owns its own prompt and its own `ai_*` cache table.
-- **`has_time_of_day_data: false`** on the Calendar section is deliberate, not a bug — `events` currently stores date-only, no start/end time, so real "available time block" scheduling (Phase 3) needs a schema change first. Flagged explicitly rather than silently faking a capability that isn't there yet.
-- Also pulled `computeStreak`/`successRate` (`lib/ai/habit-streak.ts`) and `daysBetween` (`lib/date.ts`) out of three routes that had copy-pasted them separately.
-
-**Phase 1b — done.** Morning Brief rebuilt on `buildLifeOSContext()` as proof the engine plugs cleanly into a real, already-shipped feature — verified in the UI to produce the same style of output as before the migration, with the same prompt and cache logic untouched underneath.
-
-**Phase 2 — done. Today Brain**, a new AI Assistant tab (`app/api/today-focus`, `ai_today_focus` table) that merges what used to be two separate features — Morning Brief and Prioritize — into one ordered daily focus plan. Built entirely on `buildLifeOSContext()`, plus Journal for the first time in an AI feature outside Journal Insights (mood trend only, never a diagnosis). Every task/project/habit id the model returns is cross-checked against what it was actually given, same defensive pattern `prioritize-tasks` uses — a hallucinated id gets silently dropped, not shown. Explicitly forbidden from inventing clock times or durations, for the same schema-gap reason as Phase 1's calendar flag. Morning Brief and Prioritize stay in place for now; once Today Brain's proven out in daily use, they'll be retired rather than kept as permanent overlapping tabs.
-
-**Phase 3 — on hold.** Needs `events` to store a real time range, not just a date — see the Phase 1 calendar note above. Revisit once that schema change happens.
-
-**Phase 4 — done. Project Health.** `lib/project-health.ts` scores every active project as Healthy / Slowing / At Risk / Blocked, shown as a badge on each Projects card and in the edit drawer. Deliberately **rule-based, not AI-generated** — a health badge that could flip between states based on model temperature is worse than one that's always reproducible, and the reasoning ("deadline in 3 days, 2 overdue tasks") reads just as clearly as a hand-written fact without any hallucination risk. Uses four of the roadmap's five signals (Progress, Activity, Deadline, Tasks) — Calendar is excluded for the same `has_time_of_day_data` reason Phase 1 and Phase 3 already flag. No new database columns; computed live from data every project already has.
+- **Phase 1/1b** — Context Engine built; Morning Brief migrated onto it.
+- **Phase 2** — Today Brain: one merged daily focus plan (replaces the old Morning Brief + Prioritize split), built on the engine.
+- **Phase 3** — Calendar time-of-day data: `events` now store a real start/end time (optional — all-day still works exactly as before). The engine computes actual free/busy windows for today, and Today Brain can cite a real open block instead of only relative ordering.
+- **Phase 4** — Project Health: rule-based Healthy/Slowing/At Risk/Blocked badge on every project, computed live, no AI call.
+- **Phase 5** — Smart Inbox classification: captures get an AI-suggested type (with confidence + reason) before you convert them, always overridable, and the Inbox still works with zero AI.
+- **Phase 6** — Ask LifeOS 2.0: natural-language search now reasons over the same project-health/deadline/habit-streak/mood data as the rest of the AI tools, so status questions ("how's Project X doing") get a real grounded answer, not just a text match. Debts & Loans is now part of the searchable corpus too.
 ---
 
 
@@ -167,7 +159,7 @@ A universal capture layer, built on the "capture first, organize later" principl
 - **Capture anywhere** — a bar on the Dashboard, the `inbox:` prefix in the Command Palette, or the global **Ctrl/Cmd+Shift+I** shortcut, which opens the palette pre-filled and ready to type.
 - **Process, don't presort** — each capture sits unprocessed until you decide what it actually is. A processing drawer converts it into a real Task, Note, Idea, Project, Event, or Reminder, asking only for the one field that type genuinely needs (a due date for a task, a date for an event) — everything else takes a sane default, editable later from the real page.
 - **Traceable history** — a converted item keeps a `→ Task` / `→ Note` tag pointing at what it became, and moves to Processed rather than disappearing.
-- **AI category suggestions are deliberately not in v1** — per the feature's own design doc, Inbox needed to work completely without AI before adding it, to avoid the capture step ever depending on an API call succeeding.
+- **AI category suggestions** — on Process, an AI-suggested type (with confidence + reason) pre-selects itself; always overridable, and the Inbox still works with zero AI if the call fails.
 
 # 🏗 Architecture
 
@@ -231,13 +223,13 @@ Run the SQL files in `supabase/` (in numeric/phase order) against your Supabase 
 # 📈 Roadmap
 
 ## Completed
-Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass, including a fix for Calendar/Notes overflow on narrow screens · currency symbol wired app-wide · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics · deployed to Vercel · installable PWA with offline app-shell caching · Web Push notifications for due reminders and overdue tasks (VAPID + service worker, delivered via a free GitHub Actions cron since Vercel Hobby caps cron to once daily) · per-user Settings (display name/currency no longer shared across accounts) · Inbox — universal quick capture with zero required categorization, a processing drawer to convert a capture into a real Task/Note/Idea/Project/Event/Reminder, and entry points everywhere (dashboard widget, Command Palette `inbox:` prefix, Ctrl/Cmd+Shift+I shortcut) · Dashboard's task list now hides completed items by default instead of showing every task ever created · Project ↔ Notes, Project ↔ Calendar Events, Project ↔ Learning (each with a picker on both create and edit, plus a read-only "Linked —" list back on the Project page) · fixed a Notes editor input-lag bug where typing fought the debounced save · AI reasoning across the connected module graph (Morning Brief, Review, Prioritize, Ask LifeOS) · migrated off Groq's deprecated `llama-3.3-70b-versatile` to `openai/gpt-oss-120b` · AI route rate limiting rebuilt as per-user and Postgres-backed instead of a single shared in-memory bucket, so it actually works across Vercel's serverless instances and can't let one account lock out another · redesigned login page (rounded card, icon-prefixed inputs, password visibility toggle) and fixed a real hydration bug in it (a literal `"` in inline CSS getting escaped differently server vs. client — fixed via `dangerouslySetInnerHTML`) · fixed a middleware bug that was redirecting `sw.js`/`manifest.webmanifest` to `/login` for logged-out visitors, silently breaking the service worker's ability to ever install for a first-time user
+Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass, including a fix for Calendar/Notes overflow on narrow screens · currency symbol wired app-wide · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics · deployed to Vercel · installable PWA with offline app-shell caching · Web Push notifications for due reminders and overdue tasks (VAPID + service worker, delivered via a free GitHub Actions cron since Vercel Hobby caps cron to once daily) · per-user Settings (display name/currency no longer shared across accounts) · Inbox — universal quick capture with zero required categorization, a processing drawer to convert a capture into a real Task/Note/Idea/Project/Event/Reminder, and entry points everywhere (dashboard widget, Command Palette `inbox:` prefix, Ctrl/Cmd+Shift+I shortcut) · Dashboard's task list now hides completed items by default instead of showing every task ever created · Project ↔ Notes, Project ↔ Calendar Events, Project ↔ Learning (each with a picker on both create and edit, plus a read-only "Linked —" list back on the Project page) · fixed a Notes editor input-lag bug where typing fought the debounced save · AI reasoning across the connected module graph (Morning Brief, Review, Prioritize, Ask LifeOS) · migrated off Groq's deprecated `llama-3.3-70b-versatile` to `openai/gpt-oss-120b` · AI route rate limiting rebuilt as per-user and Postgres-backed instead of a single shared in-memory bucket, so it actually works across Vercel's serverless instances and can't let one account lock out another · redesigned login page (rounded card, icon-prefixed inputs, password visibility toggle) and fixed a real hydration bug in it (a literal `"` in inline CSS getting escaped differently server vs. client — fixed via `dangerouslySetInnerHTML`) · fixed a middleware bug that was redirecting `sw.js`/`manifest.webmanifest` to `/login` for logged-out visitors, silently breaking the service worker's ability to ever install for a first-time user · Context Engine (`buildLifeOSContext()`) as the shared data layer for all AI features · Today Brain, a merged daily focus plan replacing Morning Brief + Prioritize · Project Health badges (rule-based, no AI) · Calendar time-of-day data — optional start/end time on events, with real free/busy computation feeding Today Brain · Smart Inbox classification (AI-suggested type on Process, always overridable) · Ask LifeOS 2.0 (grounded status answers + Debts & Loans added to the search corpus)
 
 ## In Progress
 Nothing active right now
 
 ## Planned
-A deeper Tasks ↔ Calendar link, if ever needed — the current due-date badge is one-directional and read-only; scheduling a task as an actual timed block (not just an all-day badge) would be the next step up, but isn't planned by default · AI category suggestions for Inbox captures (deliberately deferred from the MVP) · a real self-serve sign-up flow and a per-account/Groq-usage strategy, if this ever grows beyond a handful of users
+A deeper Tasks ↔ Calendar link — tasks themselves still aren't schedulable as timed blocks, only events are (Phase 3 covered events, not tasks) · a real self-serve sign-up flow and a per-account/Groq-usage strategy, if this ever grows beyond a handful of users
 
 ---
 
