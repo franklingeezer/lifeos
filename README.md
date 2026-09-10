@@ -4,438 +4,248 @@
 
 ### Your Personal Operating System
 
-A single-user, AI-assisted productivity system that connects tasks, projects, notes, habits, finance, learning, journaling, ideas, and time into one workspace.
+*A single-user, AI-assisted productivity app that connects tasks, projects, notes, journals, habits, finance, learning, media, and ideas into one workspace instead of a pile of disconnected tools.*
+
+---
 
 ![Next.js](https://img.shields.io/badge/Next.js-14-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-green)
+![SWR](https://img.shields.io/badge/Data%20layer-SWR-orange)
 ![Status](https://img.shields.io/badge/Status-Active%20Development-success)
 
 </div>
 
 ---
 
-## ✨ Overview
+# ✨ Vision
 
-LifeOS is a personal operating system built around one idea:
+LifeOS isn't another to-do app.
 
-> **Your productivity data should understand how it connects.**
+It's a personal, single-user operating system that combines productivity, journaling, habits, finance, learning, and AI into one connected workspace — built for one person, running on infrastructure that person actually controls.
 
-Instead of keeping tasks, projects, notes, calendar events, habits, finances, learning, journaling, and ideas in separate tools, LifeOS brings them together into one connected workspace.
-
-LifeOS uses these relationships to provide better organization, planning, insights, and AI-assisted decision making.
+Every module works on its own. The goal is for them to increasingly understand each other too, so the system reflects real life instead of a dozen isolated spreadsheets.
 
 ---
 
-## 🚀 Core Features
+# 🔐 Security
 
-- 📊 **Dashboard** — Daily priorities, AI Morning Brief, habits, projects, calendar, finance, and recent activity
-- ✅ **Tasks** — Kanban/list views, priorities, deadlines, subtasks, search, and project linking
-- 📁 **Projects** — Progress, deadlines, health, tasks, notes, calendar events, and learning relationships
-- 📅 **Calendar** — All-day and timed events with start/end times
-- 📝 **Notes** — Markdown, folders, tags, pinning, search, and project linking
-- 📓 **Journal** — Mood, energy, stress, wins, lessons, goals, and gratitude
-- 🔁 **Habits** — Daily tracking, streaks, and success statistics
-- 💰 **Finance** — Income, expenses, savings, investments, debts, and analytics
-- 📚 **Learning** — Courses, study hours, completion, certificates, and project relationships
-- 💡 **Idea Vault** — Capture, develop, validate, archive, and convert ideas into projects
-- 📥 **Inbox** — Capture first, organize later
-- 🖼️ **Media Vault** — Images, videos, and documents with tags and captions
-- 📈 **Analytics** — Productivity, finance, habits, projects, and idea insights
-- 🤖 **AI Assistant** — Morning Brief, Today Brain, Ask LifeOS, Review, Prioritize, Journal Insights, and Smart Inbox
-- ⌘ **Command Palette** — Global search and quick actions
-- 🔔 **Web Push** — Task reminders and overdue notifications
-- 📱 **PWA** — Installable application with offline app shell
-- 💾 **Data Export** — Export personal LifeOS data as JSON
+LifeOS is single-user by design — no public sign-up. Every table is locked down with Postgres Row-Level Security scoped to `auth.uid()`, so even the public API key can't touch another account's data (not that there's meant to be one).
 
----
-## 🧩 Features
-
-### 📊 Dashboard
-
-The central overview of LifeOS.
-
-- Daily priorities
-- AI Morning Brief
-- Habit progress
-- Active projects
-- Weekly calendar
-- Finance snapshot
-- Recent notes
+- Real Supabase Auth login, with session-refresh middleware
+- Full forgot-password flow (email reset link → callback → set new password)
+- Rate limiting on every AI route (15 requests / 10 min, shared across all five) so a stray loop can't burn through the Groq quota
 
 ---
 
-### ✅ Tasks
+# 🚀 Features
 
-Manage everyday work with a flexible task system.
+## Dashboard
+Daily priorities, AI Morning Brief, habit progress, active projects, this week's calendar, finance snapshot, and recent notes — all live data, no mock content.
 
-- Kanban and list views
-- Priorities
-- Due dates
-- Subtasks
-- Search
-- Project linking
-- Mobile-friendly interactions
-- Quick creation through Command Palette
+## Projects
+Project management with status, priority, deadlines, and progress. Linked tasks show up on the project itself, with a live "X of Y done" count alongside the manual progress slider — informational, never overriding your own control.
 
----
+## Tasks
+Kanban board (swipeable on mobile) and list view, priorities, due dates, subtasks, full-text search, and optional project linking. Command Palette (`Ctrl/Cmd+K`) can create a task instantly from anywhere with `task: ___`.
 
-### 📁 Projects
+## Calendar
+Monthly view, event management, color coding, optional time-blocked events (all-day by default).
 
-Keep larger goals organized and connected.
+## Notes
+Markdown notes with folders, tags, pinning, and full-text search. Mobile gets a proper master-detail layout (list → tap → editor, with a back button) instead of squeezing both panes together. Quick-create from the Command Palette with `note: ___`.
 
-- Status and priority
-- Deadlines
-- Progress tracking
-- Project health
-- Linked tasks
-- Linked notes
-- Linked calendar events
-- Linked learning items
+## Journal
+Daily entries — Mood, Energy, Stress (custom gradient-track scale, not emoji), Wins, Failures, Lessons, Tomorrow's Goals, Gratitude.
 
----
+## Habits
+Daily check-in tracking, streaks, longest streak, 30-day success rate, color-coded.
 
-### 📅 Calendar
+## Finance
+Income, expenses, savings, investments, monthly breakdown, category charts, and a separate Debts & Loans panel (who owes who, settle tracking). Currency symbol is a real Settings-driven value used consistently everywhere, not hard-coded.
 
-Manage both date-based and time-based events.
+## Learning
+Track courses, study hours, completion status, certificates.
 
-- Monthly calendar
-- All-day events
-- Start and end times
-- Color-coded events
-- Task due-date indicators
-- Project-linked events
+## Media Vault
+Store images, videos, and documents via Supabase Storage, with tags and captions.
 
----
+## Idea Vault
+Capture ideas through a real pipeline — **Spark → Developing → Validated → Archived** — with potential rating and tags. A **validated** idea can be converted into a real Project in one click, carrying its title and description over and staying linked to the original idea.
 
-### 📝 Notes
+## AI Assistant
+Five focused tools, not one AI dumped into a chat box:
+- **Morning Brief** — a short daily summary with history you can browse
+- **Ask LifeOS** — natural-language search across your own data, grounded in the same project-health/deadline/streak/mood signals as the rest of the AI tools for status questions, not just text matching
+- **Review** — weekly/monthly summaries of what actually happened
+- **Prioritize** — suggests task priority changes you review and apply (or don't)
+- **Journal Insights** — finds real patterns across entries, including habit-mood correlations *only* when there's genuinely enough data to say so honestly
 
-A flexible space for structured and unstructured information.
+## Analytics
+Live charts across tasks, finance, habits, projects, and ideas — including a **habit ↔ mood correlation** card that compares average mood on days a habit was done vs. skipped, gated behind a minimum sample size so it never shows a misleading pattern from too little data.
 
-- Markdown support
-- Folders
-- Tags
-- Pinning
-- Full-text search
-- Project linking
+## Command Palette
+Global `Ctrl/Cmd+K` search across Tasks, Notes, Projects, Habits, Learning, Idea Vault, and Calendar events — full keyboard navigation, plus inline quick-create commands (`task:`, `note:`) that create something instantly without leaving wherever you are.
+
+## Data Export
+One-click JSON backup of everything — Tasks, Projects, Notes, Habits, Finance, Debts, Calendar, Journal, Learning, Media metadata, and Ideas — independent of Supabase, from Settings.
 
 ---
 
-### 📓 Journal
+# 🧠 AI Philosophy
 
-Capture daily reflections and personal context.
+> **AI should reduce busywork, not replace thinking — and it should never invent what it doesn't actually know.**
 
-- Mood
-- Energy
-- Stress
-- Wins
-- Failures
-- Lessons
-- Tomorrow's goals
-- Gratitude
+Every LifeOS feature works completely without AI. Where AI is used (Groq, `openai/gpt-oss-120b`), it's held to a strict grounding standard — Journal Insights, for example, is explicitly forbidden from attributing a mood shift to any cause that isn't literally present in the entry text or habit data for that date. No invented causal stories, no forced patterns from thin data.
 
 ---
 
-### 🔁 Habits
+# 🔗 Deep Module Relationships
 
-Track consistency over time.
+LifeOS is gradually moving from "a set of connected pages" toward modules that actually understand each other:
 
-- Daily check-ins
-- Current streaks
-- Longest streak
-- 30-day success rate
-
----
-
-### 💰 Finance
-
-Keep personal financial information organized.
-
-- Income
-- Expenses
-- Savings
-- Investments
-- Monthly summaries
-- Category breakdowns
-- Debts & loans
-- Currency settings
+- **Project ↔ Tasks** — link tasks to a project; see linked-task progress on the project itself
+- **Project ↔ Notes, Project ↔ Calendar Events, Project ↔ Learning** — same link-and-see-back-on-the-project pattern, for whichever module a piece of work actually lives in
+- **Tasks ↔ Calendar** — every task's due date automatically shows up as a badge on the Calendar page; edit the task, not the badge, to change it
+- **Idea Vault → Project** — convert a validated idea into a real project in one click
+- **Journal ↔ Habits ↔ Analytics** — habit completion data feeds both the Analytics correlation chart and the AI's Journal Insights, with matching sample-size honesty between the two
 
 ---
 
-### 📚 Learning
+# 🧭 AI Reasoning Across Modules
 
-Track learning progress alongside the rest of your life.
+The AI Assistant's tools don't just read their own module in isolation anymore — they can see how Projects connect to Tasks, Notes, Calendar Events, and Learning, and use that when it's actually relevant.
 
-- Courses
-- Study hours
-- Completion tracking
-- Certificates
-- Project relationships
-
----
-
-### 💡 Idea Vault
-
-Move ideas from initial thoughts toward execution.
-
-**Spark → Developing → Validated → Archived**
-
-Validated ideas can be converted into projects.
+- **Morning Brief & Review** — pull a compact "project context" (linked open/overdue tasks, notes, upcoming events, learning progress) for each active project, and combine it into one bullet when genuinely noteworthy — e.g. "Cyber Terminal — 3 overdue tasks, standup Thursday" instead of two disconnected facts. Never forces a mention when a project has nothing linked worth surfacing.
+- **Prioritize** — a task with no due date of its own can still get ranked higher because the *project* it's linked to has a deadline within 14 days; the reason given explains exactly why.
+- **Ask LifeOS** — now searches Calendar Events and Learning items too (previously unsearchable), and tags every result with its linked project, so "stuff about Cyber Terminal" surfaces the task, note, event, and learning item together, not just the project record.
+- **Journal Insights was deliberately left alone.** It has no `project_id` and already holds itself to a stricter grounding rule than the rest of the AI tools — extending it here would either break that rule or need a real redesign, and a well-reasoned feature staying as-is beats forcing symmetry across all 5 tools for its own sake.
 
 ---
 
-### 📥 Inbox
+# 🧠 LifeOS 2.0 — Context Engine (all 6 phases complete)
 
-The universal capture layer of LifeOS.
+`lib/ai/context-engine.ts` exports `buildLifeOSContext()` — one function that assembles Tasks, Projects, Calendar, Habits, Journal, Learning, Finance, and Recent Activity into a single typed, section-selectable object, so every AI feature reads from the same data instead of hand-rolling its own queries.
 
-> **Capture first → Organize later**
+- **Phase 1/1b** — Context Engine built; Morning Brief migrated onto it.
+- **Phase 2** — Today Brain: one merged daily focus plan (replaces the old Morning Brief + Prioritize split), built on the engine.
+- **Phase 3** — Calendar time-of-day data: `events` now store a real start/end time (optional — all-day still works exactly as before). The engine computes actual free/busy windows for today, and Today Brain can cite a real open block instead of only relative ordering.
+- **Phase 4** — Project Health: rule-based Healthy/Slowing/At Risk/Blocked badge on every project, computed live, no AI call.
+- **Phase 5** — Smart Inbox classification: captures get an AI-suggested type (with confidence + reason) before you convert them, always overridable, and the Inbox still works with zero AI.
+- **Phase 6** — Ask LifeOS 2.0: natural-language search now reasons over the same project-health/deadline/habit-streak/mood data as the rest of the AI tools, so status questions ("how's Project X doing") get a real grounded answer, not just a text match. Debts & Loans is now part of the searchable corpus too.
+---
 
-Quickly capture a thought without deciding what it should become.
 
-Inbox items can be converted into:
+# 📱 Mobile
 
-- Tasks
-- Notes
-- Ideas
-- Projects
-- Calendar events
-- Reminders
-
-Conversions remain connected to the original Inbox item for traceability.
+Every page works properly at phone width — not just "doesn't break," but actually designed for it: a slide-in nav drawer replaces the desktop rail, Tasks' kanban becomes swipeable with tappable column tabs, Notes/Journal use a real mobile master-detail pattern, and every modal/drawer fits within a narrow screen without overflowing.
 
 ---
 
-### 🖼️ Media Vault
+# 🔔 PWA & Push Notifications
 
-Organize personal media inside LifeOS.
+LifeOS installs like a real app — on Android via Chrome's install prompt, on iOS via Safari's "Add to Home Screen" (Apple requires the app to actually be installed before it'll grant push permission, so on iOS notifications only work once it's on your home screen).
 
-- Images
-- Videos
-- Documents
-- Tags
-- Captions
+- **Offline app shell** — a hand-rolled service worker (not `next-pwa`, kept consistent with the rest of the codebase's "own the code" approach) caches the static shell and shows a proper offline page instead of a browser error when you lose connection. Your actual data is deliberately never cached this way — Supabase reads/writes always go live, so you never see stale personal data offline.
+- **Web Push** — reminders and overdue-task alerts reach you even when LifeOS is closed, via VAPID-signed push and a `push_subscriptions` table (RLS-scoped like everything else). Each browser/device gets its own subscription, manageable from Settings.
+- **Delivery** — a cron-triggered route checks for anything due and pushes it. Vercel's free Hobby plan only allows once-daily cron jobs, so the actual every-few-minutes trigger runs via a free GitHub Actions workflow instead, with Vercel's own cron kept as a once-a-day fallback.
 
 ---
 
-### 📈 Analytics
+# 📥 Inbox
 
-Understand patterns across your LifeOS data.
+A universal capture layer, built on the "capture first, organize later" principle: nothing typed into it needs a category up front.
 
-- Task statistics
-- Finance analytics
-- Habit trends
-- Project analytics
-- Idea analytics
-- Habit ↔ mood correlation
+- **Capture anywhere** — a bar on the Dashboard, the `inbox:` prefix in the Command Palette, or the global **Ctrl/Cmd+Shift+I** shortcut, which opens the palette pre-filled and ready to type.
+- **Process, don't presort** — each capture sits unprocessed until you decide what it actually is. A processing drawer converts it into a real Task, Note, Idea, Project, Event, or Reminder, asking only for the one field that type genuinely needs (a due date for a task, a date for an event) — everything else takes a sane default, editable later from the real page.
+- **Traceable history** — a converted item keeps a `→ Task` / `→ Note` tag pointing at what it became, and moves to Processed rather than disappearing.
+- **AI category suggestions** — on Process, an AI-suggested type (with confidence + reason) pre-selects itself; always overridable, and the Inbox still works with zero AI if the call fails.
 
----
-## 🤖 AI Assistant
+# 🏗 Architecture
 
-LifeOS uses AI to help interpret connected personal data and turn it into useful actions.
-
-### 🧠 AI Features
-
-- **Morning Brief** — Summarizes what matters today
-- **Today Brain** — Builds a focused daily plan using tasks, projects, habits, deadlines, and calendar availability
-- **Ask LifeOS** — Ask questions about your own LifeOS data
-- **Prioritize** — Suggests task priorities using deadlines and project context
-- **Review** — Generates reflections from recent activity
-- **Journal Insights** — Identifies grounded patterns from journal and habit data
-- **Smart Inbox** — Suggests what an Inbox capture could become
-
-AI suggestions are validated against available LifeOS data and do not replace user confirmation for actions such as Inbox conversion.
-
----
-
-## 🔗 Connected System
-
-LifeOS connects its modules so information can flow between them.
-
-- **Projects** → Tasks, Notes, Calendar Events, Learning
-- **Tasks** → Calendar
-- **Ideas** → Projects
-- **Inbox** → Tasks, Notes, Ideas, Projects, Calendar Events, Reminders
-- **Journal** → Habits → Analytics
-
-These relationships also provide context for AI features.
+```
+LifeOS
+├── Dashboard
+├── Projects        ←→ Tasks, Notes, Calendar, Learning
+├── Tasks
+├── Calendar
+├── Notes
+├── Journal          ←→ Habits ←→ Analytics
+├── Habits
+├── Finance
+│   └── Debts & Loans
+├── Learning
+├── Media Vault
+├── Idea Vault       → Projects
+├── Inbox            → Tasks, Notes, Idea Vault, Projects, Calendar, Reminders
+├── Analytics
+├── Settings
+└── AI Assistant
+    ├── Morning Brief
+    ├── Ask LifeOS
+    ├── Review
+    ├── Prioritize
+    └── Journal Insights
+```
 
 ---
 
-## 🧠 Context Engine
+# 🛠 Tech Stack
 
-The Context Engine provides a shared view of LifeOS data for AI features.
+**Frontend** — Next.js 14 (App Router), TypeScript, React 18. Styling is mostly inline styles driven by CSS custom properties (theme tokens for dark/light), not a component library — deliberately, for full control over the look.
 
-It can combine:
+**Data layer** — [SWR](https://swr.vercel.app/) with one dedicated hook per resource (`useTasks`, `useFinance`, `useHabits`, etc.), typed data, optimistic updates with rollback on failure, and shared caching so navigating between pages doesn't refetch from scratch.
 
-- Tasks
-- Projects
-- Calendar
-- Habits
-- Journal
-- Learning
-- Finance
-- Recent activity
+**Backend** — Supabase (Postgres + Auth + Storage), Row-Level Security on every table.
 
-This allows AI features to reason across connected parts of LifeOS instead of treating each module separately.
+**AI** — Groq (`openai/gpt-oss-120b`) via direct API calls from Next.js Route Handlers, with server-side rate limiting.
+
+**Charts** — Recharts. **Icons** — Lucide.
 
 ---
 
-## 🩺 Project Health
-
-Projects are evaluated using real project signals such as:
-
-- Progress
-- Activity
-- Deadlines
-- Tasks
-
-Health states:
-
-- 🟢 Healthy
-- 🟡 Slowing
-- 🟠 At Risk
-- 🔴 Blocked
-
-Project Health is deterministic and does not depend on AI.
-
- ## 🔐 Security
-
-LifeOS is currently designed as a single-user system.
-
-- Supabase Authentication
-- Row-Level Security (RLS)
-- User-owned database records
-- Protected API routes
-- Server-side AI requests
-- Per-user AI rate limiting
-- Forgot-password flow
-- Secure session handling
-
----
-
-## 🛠️ Tech Stack
-
-### Frontend
-- Next.js 14
-- React 18
-- TypeScript
-- Tailwind CSS
-
-### Backend & Database
-- Supabase
-- PostgreSQL
-- Supabase Auth
-- Supabase Storage
-- Row-Level Security
-
-### Data & State
-- SWR
-- Zustand
-- Zod
-
-### AI
-- Groq
-- `openai/gpt-oss-120b`
-
-### UI & Visualization
-- Lucide
-- Recharts
-
-### Deployment
-- Vercel
-- GitHub Actions
-
----
-
-## 🏗️ Project Structure
-
-- `app/` — Pages, layouts, and API routes
-- `components/` — Reusable UI components
-- `hooks/` — Client-side data and application hooks
-- `lib/` — Shared utilities, AI, Supabase, and business logic
-- `public/` — PWA and static assets
-- `supabase/` — Database schema and migrations
-- `.github/` — GitHub Actions workflows
-
-## ⚙️ Getting Started
-
-### 1. Clone the repository
+# ▶️ Getting Started
 
 ```bash
 git clone https://github.com/franklingeezer/lifeos.git
 cd lifeos
-```
-
-### 2. Install dependencies
-
-```bash
 npm install
-```
-
-### 3. Configure environment variables
-
-```bash
-cp .env.example .env.local
-```
-
-Add the required Supabase, Groq, and Web Push variables to `.env.local`.
-
-### 4. Set up Supabase
-
-Run the required SQL files from the `supabase/` directory in your Supabase project.
-
-Make sure the latest migrations are applied before using features that depend on them.
-
-### 5. Start the development server
-
-```bash
+cp .env.example .env.local   # fill in your Supabase + Groq keys
 npm run dev
 ```
 
-Open `http://localhost:3000` in your browser.
+For Web Push (optional — the app works fully without it), also generate a VAPID keypair with `npx web-push generate-vapid-keys` and add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to `.env.local`. Push notifications only work on a real HTTPS deployment, and delivery needs `CRON_SECRET` plus a scheduled trigger — see `.github/workflows/push-cron.yml`.
 
-### 6. Check the production build
-
-```bash
-npm run lint
-npm run build
-```
----
-
-## 📌 Roadmap
-
-### Next
-- Task → Calendar smart scheduling
-- More time-aware daily planning
-- Context-aware notifications
-- Inbox AI improvements
-- Stronger automated testing
-
-### Future
-- Long-term productivity memory
-- More proactive suggestions
-- Advanced scheduling
-- Deeper cross-module automation
+Run the SQL files in `supabase/` (in numeric/phase order) against your Supabase project before first use — they set up every table, RLS policy, and the auth lockdown. You'll also need to create your one Supabase Auth user manually under Authentication → Users, since there's no public sign-up.
 
 ---
 
-## 🎯 Vision
+# 📈 Roadmap
 
-LifeOS aims to become a personal system where your tasks, projects, time, habits, knowledge, and ideas work together instead of living in separate tools.
+## Completed
+Dashboard · Projects · Tasks · Calendar · Notes · Journal · Habits · Finance · Debts & Loans · Learning · Media Vault · Idea Vault · Analytics · Settings · full Auth/RLS lockdown · forgot-password flow · SWR data-layer migration (all 11 core modules) · Command Palette with quick-create actions · AI Assistant (all 5 tools) · full mobile responsiveness pass, including a fix for Calendar/Notes overflow on narrow screens · currency symbol wired app-wide · data export · Project ↔ Tasks · Idea Vault → Project · Journal ↔ Habits ↔ Analytics · deployed to Vercel · installable PWA with offline app-shell caching · Web Push notifications for due reminders and overdue tasks (VAPID + service worker, delivered via a free GitHub Actions cron since Vercel Hobby caps cron to once daily) · per-user Settings (display name/currency no longer shared across accounts) · Inbox — universal quick capture with zero required categorization, a processing drawer to convert a capture into a real Task/Note/Idea/Project/Event/Reminder, and entry points everywhere (dashboard widget, Command Palette `inbox:` prefix, Ctrl/Cmd+Shift+I shortcut) · Dashboard's task list now hides completed items by default instead of showing every task ever created · Project ↔ Notes, Project ↔ Calendar Events, Project ↔ Learning (each with a picker on both create and edit, plus a read-only "Linked —" list back on the Project page) · fixed a Notes editor input-lag bug where typing fought the debounced save · AI reasoning across the connected module graph (Morning Brief, Review, Prioritize, Ask LifeOS) · migrated off Groq's deprecated `llama-3.3-70b-versatile` to `openai/gpt-oss-120b` · AI route rate limiting rebuilt as per-user and Postgres-backed instead of a single shared in-memory bucket, so it actually works across Vercel's serverless instances and can't let one account lock out another · redesigned login page (rounded card, icon-prefixed inputs, password visibility toggle) and fixed a real hydration bug in it (a literal `"` in inline CSS getting escaped differently server vs. client — fixed via `dangerouslySetInnerHTML`) · fixed a middleware bug that was redirecting `sw.js`/`manifest.webmanifest` to `/login` for logged-out visitors, silently breaking the service worker's ability to ever install for a first-time user · Context Engine (`buildLifeOSContext()`) as the shared data layer for all AI features · Today Brain, a merged daily focus plan replacing Morning Brief + Prioritize · Project Health badges (rule-based, no AI) · Calendar time-of-day data — optional start/end time on events, with real free/busy computation feeding Today Brain · Smart Inbox classification (AI-suggested type on Process, always overridable) · Ask LifeOS 2.0 (grounded status answers + Debts & Loans added to the search corpus)
 
-> **Capture quickly → organize intentionally → connect everything → act on what matters.**
+## In Progress
+Nothing active right now
 
----
-
-## 🤝 Contributing
-
-LifeOS is currently a personal single-user project.
-
-Feedback, ideas, and suggestions are welcome through GitHub Issues.
+## Planned
+A deeper Tasks ↔ Calendar link — tasks themselves still aren't schedulable as timed blocks, only events are (Phase 3 covered events, not tasks) · a real self-serve sign-up flow and a per-account/Groq-usage strategy, if this ever grows beyond a handful of users
 
 ---
 
-## 📄 License
+# 🎯 Long-Term Vision
+
+The end goal isn't more modules — it's modules that understand each other, so LifeOS can eventually answer something like *"what should I focus on today?"* by actually reasoning over deadlines, project state, habits, and recent journal context together, instead of showing isolated charts per module.
+
+---
+
+# 🤝 Contributing
+
+This is a personal, single-user project — but suggestions and feedback are always welcome via issues.
+
+---
+
+# 📄 License
 
 MIT License
 
@@ -443,7 +253,6 @@ MIT License
 
 <div align="center">
 
-**Built with Next.js, Supabase, TypeScript, and Groq.**
+**Built with Next.js, Supabase, TypeScript, and Claude.**
 
 </div>
-
