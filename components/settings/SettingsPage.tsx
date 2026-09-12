@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { mutate } from "swr";
-import { User, Palette, Coins, Trash2, Check, Sun, Moon, Database, Loader2, Download, Bell, BellOff } from "lucide-react";
+import { User, Palette, Coins, Trash2, Check, Sun, Moon, Database, Loader2, Download, Bell, BellOff, Github } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
 import { CURRENCY_SYMBOL_KEY } from "@/hooks/useCurrencySymbol";
@@ -13,13 +13,19 @@ type Settings = {
   display_name: string;
   currency_code: string;
   currency_symbol: string;
+  github_username: string | null;
 };
 
 const THEME_KEY = "lifeos-theme";
 
 export default function SettingsPage() {
   const supabase = useMemo(() => createClient(), []);
-  const [settings, setSettings] = useState<Settings>({ display_name: "Chief", currency_code: "BDT", currency_symbol: "৳" });
+  const [settings, setSettings] = useState<Settings>({
+    display_name: "Chief",
+    currency_code: "BDT",
+    currency_symbol: "৳",
+    github_username: null,
+  });
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState<"idle" | "saving" | "saved">("idle");
   const [theme, setThemeState] = useState<"dark" | "light">("dark");
@@ -33,7 +39,11 @@ export default function SettingsPage() {
     setThemeState(savedTheme === "light" ? "light" : "dark");
 
     const load = async () => {
-      const { data } = await supabase.from("app_settings").select("display_name, currency_code, currency_symbol").eq("id", 1).maybeSingle();
+      const { data } = await supabase
+        .from("app_settings")
+        .select("display_name, currency_code, currency_symbol, github_username")
+        .eq("id", 1)
+        .maybeSingle();
       if (data) setSettings(data as Settings);
       setLoading(false);
     };
@@ -241,6 +251,31 @@ export default function SettingsPage() {
                     }}
                     className="settings-input narrow"
                     style={{ width: 100 }}
+                  />
+                </SettingsRow>
+              </SettingsCard>
+
+              {/* Integrations */}
+              <SettingsCard icon={Github} title="Integrations" description="Personal Activity on the Dashboard">
+                <SettingsRow label="GitHub username" hint="Shows your recent public GitHub activity on the Dashboard. Leave blank to hide the card.">
+                  <input
+                    key={settings.github_username ?? ""}
+                    defaultValue={settings.github_username ?? ""}
+                    placeholder="e.g. franklingeezer"
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      const next = v.length > 0 ? v : null;
+                      if (next !== settings.github_username) {
+                        saveSettings({ github_username: next });
+                        // The Dashboard's GitHub card is on its own SWR key
+                        // (separate from app_settings) so it can poll and
+                        // cache independently — revalidate it here instead
+                        // of waiting for its own refresh interval to catch
+                        // a username that was just added, changed, or cleared.
+                        mutate("/api/github/activity");
+                      }
+                    }}
+                    className="settings-input"
                   />
                 </SettingsRow>
               </SettingsCard>

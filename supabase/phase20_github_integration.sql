@@ -1,0 +1,24 @@
+-- LifeOS Roadmap — Personal Activity, Part 1: GitHub Activity (schema)
+--
+-- One additive, nullable column on the existing singleton app_settings
+-- row (see phase4h_settings.sql) — same reasoning as currency_symbol:
+-- a single-user app, one settings row, no per-user table needed.
+--
+-- app_settings.github_username — the public GitHub username whose
+-- recent public activity (pushes, PRs, issues, releases) shows up in
+-- the Dashboard's Personal Activity section. Null/blank means "not
+-- connected yet" — the Dashboard card falls back to a connect prompt
+-- rather than erroring, same pattern as a task with no
+-- estimated_minutes in phase19.
+--
+-- Note: SettingsPage.tsx already selects/updates this column (it was
+-- built ahead of this migration), so until this runs against your
+-- Supabase project, the Settings > Integrations save will fail and
+-- /api/github/activity will report "not configured" for everyone.
+--
+-- No token/secret here: the GitHub Activity card only ever reads a
+-- username and calls GitHub's public events API — no OAuth, nothing to
+-- protect. That's deliberately different from the Spotify half of this
+-- feature (Part 2, not yet started), which will need its own
+-- server-side-only token table because Now Playing data isn't public.
+alter table app_settings add column if not exists github_username text;
