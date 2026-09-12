@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { todayISO, addDaysISO, daysBetween } from "@/lib/date";
+import { todayISO, addDaysISO, daysBetween, nowMinutesOfDay } from "@/lib/date";
 import { computeStreak, successRate } from "@/lib/ai/habit-streak";
 import { getProjectGraph } from "@/lib/ai/project-graph";
 import { computeProjectHealthFromCounts, type ProjectHealth } from "@/lib/project-health";
@@ -148,13 +148,14 @@ export interface CalendarContext {
    * explicit signal to gate on if a schema ever regresses this.
    */
   has_time_of_day_data: true;
-  /** Minutes of today inside WORK_WINDOW already covered by timed events (overlapping/back-to-back events merged, not double-counted). */
+  /** Minutes of the rest of today (from right now, not from WORK_WINDOW_START) inside WORK_WINDOW that are already covered by timed events (overlapping/back-to-back events merged, not double-counted; events that have already finished don't count). */
   today_busy_minutes: number;
   /**
-   * Genuinely open windows today within WORK_WINDOW_START–WORK_WINDOW_END,
-   * after subtracting merged busy intervals. An empty array is a real
-   * answer ("no free time left in the window today"), not a "don't know."
-   * All-day events never consume a block — only events with both
+   * Genuinely open windows for the rest of today — from the current
+   * moment, not from WORK_WINDOW_START — within WORK_WINDOW_START–
+   * WORK_WINDOW_END, after subtracting merged busy intervals. An empty
+   * array is a real answer ("no free time left today"), not a "don't
+   * know." All-day events never consume a block — only events with both
    * start_time and end_time set.
    */
   today_free_blocks: { start: string; end: string }[];
@@ -308,14 +309,19 @@ async function buildProjects(
 // settings field for it yet) — 08:00–23:00 errs toward a personal
 // LifeOS's waking hours rather than a 9-to-5 workday, since tasks/habits
 // here already span evenings and weekends.
-const WORK_WINDOW_START = "08:00";
-const WORK_WINDOW_END = "23:00";
+//
+// Exported (not module-private) so the Task -> Calendar Smart Scheduling
+// module (lib/scheduler.ts) reasons about the same work window instead of
+// a second, potentially drifting copy of these numbers — same
+// shared-helper principle as daysBetween/computeStreak above.
+export const WORK_WINDOW_START = "08:00";
+export const WORK_WINDOW_END = "23:00";
 
-function timeToMinutes(t: string): number {
+export function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
-function minutesToTime(mins: number): string {
+export function minutesToTime(mins: number): string {
   const h = Math.floor(mins / 60).toString().padStart(2, "0");
   const m = (mins % 60).toString().padStart(2, "0");
   return `${h}:${m}`;
@@ -337,10 +343,20 @@ async function buildCalendar(supabase: SupabaseClient, today: string, lookaheadD
   const windowStart = timeToMinutes(WORK_WINDOW_START);
   const windowEnd = timeToMinutes(WORK_WINDOW_END);
 
+  // Bug fix: this used to always start from WORK_WINDOW_START (08:00),
+  // even when "now" was well past that — so at 2pm it could report 08:00
+  // as still "free," and any event that had already finished still ate
+  // into the reported busy time. Clamping to max(windowStart, now) means
+  // today_busy_minutes/today_free_blocks describe what's actually left of
+  // today from this moment forward, which is the only version of "free
+  // today" that's useful to either Today Brain's narration or the
+  // scheduler below.
+  const effectiveStart = Math.max(windowStart, nowMinutesOfDay());
+
   const busyIntervals = events
     .filter((e) => e.date === today && !e.all_day && e.start_time && e.end_time)
     .map((e) => ({
-      start: Math.max(timeToMinutes(e.start_time!), windowStart),
+      start: Math.max(timeToMinutes(e.start_time!), effectiveStart),
       end: Math.min(timeToMinutes(e.end_time!), windowEnd),
     }))
     .filter((iv) => iv.end > iv.start)
@@ -359,7 +375,7 @@ async function buildCalendar(supabase: SupabaseClient, today: string, lookaheadD
   const todayBusyMinutes = merged.reduce((sum, iv) => sum + (iv.end - iv.start), 0);
 
   const todayFreeBlocks: { start: string; end: string }[] = [];
-  let cursor = windowStart;
+  let cursor = effectiveStart;
   for (const iv of merged) {
     if (iv.start > cursor) todayFreeBlocks.push({ start: minutesToTime(cursor), end: minutesToTime(iv.start) });
     cursor = Math.max(cursor, iv.end);

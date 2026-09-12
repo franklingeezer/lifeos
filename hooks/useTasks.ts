@@ -15,6 +15,10 @@ export type Task = {
   status: Status;
   due_date: string | null;
   project_id: string | null;
+  // Roadmap — Task -> Calendar Smart Scheduling, Part 2. Nullable: most
+  // tasks never set this, and the scheduler (lib/scheduler.ts) simply
+  // can't propose a slot without it rather than guessing a duration.
+  estimated_minutes: number | null;
   subtasks: Subtask[];
 };
 
@@ -26,7 +30,7 @@ const TASKS_KEY = "tasks";
 async function fetchTasks(supabase: ReturnType<typeof createClient>): Promise<Task[]> {
   const { data, error } = await supabase
     .from("tasks")
-    .select("id, title, category, priority, status, due_date, project_id, subtasks(id, title, done, position)")
+    .select("id, title, category, priority, status, due_date, project_id, estimated_minutes, subtasks(id, title, done, position)")
     .order("created_at", { ascending: true });
 
   if (error) throw error;
@@ -56,8 +60,23 @@ export function useTasks() {
   const tasks = data ?? [];
 
   const createTask = useCallback(
-    async (input: { title: string; category: string | null; priority: Priority; due_date: string | null; project_id?: string | null }) => {
-      const payload = { ...input, project_id: input.project_id ?? null, status: "todo" as Status };
+    async (input: {
+      title: string;
+      category: string | null;
+      priority: Priority;
+      due_date: string | null;
+      project_id?: string | null;
+      // Optional — kept out of every existing caller's required fields on
+      // purpose. InboxProcessDrawer's "convert to Task" call, for one,
+      // never sets this and must keep compiling unchanged.
+      estimated_minutes?: number | null;
+    }) => {
+      const payload = {
+        ...input,
+        project_id: input.project_id ?? null,
+        estimated_minutes: input.estimated_minutes ?? null,
+        status: "todo" as Status,
+      };
       const { data: created, error } = await supabase.from("tasks").insert(payload).select().single();
       if (error || !created) throw error ?? new Error("Insert returned no row");
 

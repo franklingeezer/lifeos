@@ -133,7 +133,7 @@ export default function InboxProcessDrawer({ item, onClose }: { item: InboxItem;
           break;
         }
         case "event": {
-          const created = await createEvent({ title: item.content, date: eventDate, color: "teal", all_day: true, project_id: null, start_time: null, end_time: null });
+          const created = await createEvent({ title: item.content, date: eventDate, color: "teal", all_day: true, project_id: null, start_time: null, end_time: null, task_id: null });
           newId = created.id;
           break;
         }

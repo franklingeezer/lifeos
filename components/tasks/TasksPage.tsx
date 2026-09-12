@@ -3,11 +3,12 @@
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
-  Plus, Search, LayoutList, Columns3, X, Trash2, Circle, CheckCircle2, FolderKanban,
+  Plus, Search, LayoutList, Columns3, X, Trash2, Circle, CheckCircle2, FolderKanban, Sparkles, Loader2, CalendarClock,
 } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
-import { useTasks, type Priority, type Status } from "@/hooks/useTasks";
+import { useTasks, type Priority, type Status, type Task } from "@/hooks/useTasks";
 import { useProjects } from "@/hooks/useProjects";
+import { useCalendar } from "@/hooks/useCalendar";
 
 const COLUMNS: { key: Status; label: string }[] = [
   { key: "todo", label: "To do" },
@@ -18,6 +19,22 @@ const COLUMNS: { key: Status; label: string }[] = [
 const priorityColor = (p: Priority) =>
   p === "high" ? "rgb(var(--danger))" : p === "med" ? "rgb(var(--gold))" : "rgb(var(--text-muted))";
 
+// Roadmap — Task -> Calendar Smart Scheduling, Part 2. A dropdown of
+// common durations rather than a free-typed minutes field, matching how
+// Priority is already a select here rather than free text — less room to
+// type something the scheduler (Part 3) can't use, like "a while".
+const DURATION_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "No estimate" },
+  { value: "15", label: "15 min" },
+  { value: "30", label: "30 min" },
+  { value: "45", label: "45 min" },
+  { value: "60", label: "1 hr" },
+  { value: "90", label: "1.5 hr" },
+  { value: "120", label: "2 hr" },
+  { value: "180", label: "3 hr" },
+  { value: "240", label: "4 hr" },
+];
+
 export default function TasksPage() {
   const {
     tasks, isLoading, error,
@@ -25,6 +42,7 @@ export default function TasksPage() {
     addSubtask, toggleSubtask, deleteSubtask,
   } = useTasks();
   const { projects } = useProjects();
+  const { createEvent } = useCalendar();
   const projectNameById = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]
@@ -83,6 +101,7 @@ export default function TasksPage() {
   const [newPriority, setNewPriority] = useState<Priority>("med");
   const [newDue, setNewDue] = useState("");
   const [newProjectId, setNewProjectId] = useState("");
+  const [newEstimatedMinutes, setNewEstimatedMinutes] = useState("");
 
   const [subtaskInput, setSubtaskInput] = useState("");
 
@@ -103,12 +122,14 @@ export default function TasksPage() {
       priority: newPriority,
       due_date: newDue || null,
       project_id: newProjectId || null,
+      estimated_minutes: newEstimatedMinutes ? parseInt(newEstimatedMinutes, 10) : null,
     });
     setNewTitle("");
     setNewCategory("");
     setNewPriority("med");
     setNewDue("");
     setNewProjectId("");
+    setNewEstimatedMinutes("");
     setShowCreate(false);
   };
 
@@ -121,6 +142,67 @@ export default function TasksPage() {
     if (!subtaskInput.trim()) return;
     addSubtask(taskId, subtaskInput.trim());
     setSubtaskInput("");
+  };
+
+  // Roadmap — Task -> Calendar Smart Scheduling, Part 5. Scoped to the
+  // one task currently being scheduled (by id), not a single flat
+  // boolean/proposal pair — this is what lets the edit drawer close and
+  // reopen on a different task without a stale proposal from the
+  // previous one flashing up before this effect-free component re-derives.
+  const [schedulingTaskId, setSchedulingTaskId] = useState<string | null>(null);
+  const [scheduleProposal, setScheduleProposal] = useState<{
+    taskId: string;
+    candidate: { date: string; start_time: string; end_time: string } | null;
+    reason: string;
+  } | null>(null);
+  const [scheduleAccepting, setScheduleAccepting] = useState(false);
+
+  // A stale proposal from a previously-open task should never carry over
+  // when switching to (or closing) the edit drawer for a different one.
+  useEffect(() => {
+    setScheduleProposal(null);
+  }, [editingId]);
+
+  const handleFindSlot = async (taskId: string) => {
+    setSchedulingTaskId(taskId);
+    setScheduleProposal(null);
+    try {
+      const res = await fetch("/api/schedule-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task_id: taskId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setScheduleProposal({ taskId, candidate: null, reason: data.error ?? "Couldn't find a slot." });
+        return;
+      }
+      setScheduleProposal({ taskId, candidate: data.candidate, reason: data.reason });
+    } catch {
+      setScheduleProposal({ taskId, candidate: null, reason: "Couldn't reach the scheduler. Try again." });
+    } finally {
+      setSchedulingTaskId(null);
+    }
+  };
+
+  const handleAcceptSlot = async (task: Task) => {
+    if (!scheduleProposal?.candidate) return;
+    setScheduleAccepting(true);
+    try {
+      await createEvent({
+        title: task.title,
+        date: scheduleProposal.candidate.date,
+        color: "#6C8EF5",
+        all_day: false,
+        project_id: task.project_id,
+        start_time: scheduleProposal.candidate.start_time,
+        end_time: scheduleProposal.candidate.end_time,
+        task_id: task.id,
+      });
+      setScheduleProposal(null);
+    } finally {
+      setScheduleAccepting(false);
+    }
   };
 
   return (
@@ -368,6 +450,11 @@ export default function TasksPage() {
             <FormField label="Due date">
               <input type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)} style={inputStyle} />
             </FormField>
+            <FormField label="Estimated time">
+              <select value={newEstimatedMinutes} onChange={(e) => setNewEstimatedMinutes(e.target.value)} style={inputStyle}>
+                {DURATION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </FormField>
 
             <button
               onClick={handleCreateTask}
@@ -447,6 +534,82 @@ export default function TasksPage() {
               style={inputStyle}
             />
           </FormField>
+          <FormField label="Estimated time">
+            <select
+              value={editingTask.estimated_minutes != null ? String(editingTask.estimated_minutes) : ""}
+              onChange={(e) => updateTask(editingTask.id, { estimated_minutes: e.target.value ? parseInt(e.target.value, 10) : null })}
+              style={inputStyle}
+            >
+              {DURATION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </FormField>
+
+          {/* Roadmap — Task -> Calendar Smart Scheduling, Part 5. No
+              estimate set -> the button is replaced with a plain hint
+              rather than a disabled button, since "why is this greyed
+              out" is a worse experience than just saying what to do. */}
+          {editingTask.estimated_minutes == null ? (
+            <div style={{ fontSize: 11.5, color: "rgb(var(--text-muted))", marginBottom: 16, marginTop: -4 }}>
+              Set an estimated time above to enable scheduling.
+            </div>
+          ) : scheduleProposal?.taskId !== editingTask.id ? (
+            <button
+              onClick={() => handleFindSlot(editingTask.id)}
+              disabled={schedulingTaskId === editingTask.id}
+              style={{
+                width: "100%", marginBottom: 16, padding: "9px 0", borderRadius: 10, background: "rgb(var(--surface-2))",
+                border: "1px solid rgb(var(--border))", color: "rgb(var(--text))", fontSize: 12.5, fontWeight: 600,
+                cursor: schedulingTaskId === editingTask.id ? "default" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}
+            >
+              {schedulingTaskId === editingTask.id ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} color="rgb(var(--accent))" />}
+              {schedulingTaskId === editingTask.id ? "Finding a slot…" : "Find a time"}
+            </button>
+          ) : (
+            <div
+              style={{
+                marginBottom: 16, padding: "10px 12px", borderRadius: 10,
+                background: scheduleProposal.candidate ? "rgb(var(--accent) / 0.08)" : "rgb(var(--surface-2))",
+                border: `1px solid ${scheduleProposal.candidate ? "rgb(var(--accent) / 0.25)" : "rgb(var(--border))"}`,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: scheduleProposal.candidate ? 10 : 0 }}>
+                <CalendarClock size={14} color={scheduleProposal.candidate ? "rgb(var(--accent))" : "rgb(var(--text-muted))"} style={{ marginTop: 1, flexShrink: 0 }} />
+                <div style={{ fontSize: 12, color: "rgb(var(--text))" }}>
+                  {scheduleProposal.candidate && (
+                    <div className="font-mono" style={{ fontWeight: 600, marginBottom: 2 }}>
+                      {scheduleProposal.candidate.date} · {scheduleProposal.candidate.start_time}–{scheduleProposal.candidate.end_time}
+                    </div>
+                  )}
+                  <div style={{ color: "rgb(var(--text-muted))" }}>{scheduleProposal.reason}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {scheduleProposal.candidate && (
+                  <button
+                    onClick={() => handleAcceptSlot(editingTask)}
+                    disabled={scheduleAccepting}
+                    style={{
+                      flex: 1, padding: "7px 0", borderRadius: 8, background: "rgb(var(--accent))", color: "rgb(var(--bg))",
+                      fontSize: 12, fontWeight: 600, border: "none", cursor: scheduleAccepting ? "default" : "pointer",
+                    }}
+                  >
+                    {scheduleAccepting ? "Adding…" : "Accept"}
+                  </button>
+                )}
+                <button
+                  onClick={() => setScheduleProposal(null)}
+                  style={{
+                    flex: scheduleProposal.candidate ? "0 0 auto" : 1, padding: "7px 12px", borderRadius: 8, background: "transparent",
+                    color: "rgb(var(--text-muted))", fontSize: 12, fontWeight: 600, border: "1px solid rgb(var(--border))", cursor: "pointer",
+                  }}
+                >
+                  {scheduleProposal.candidate ? "Dismiss" : "OK"}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: 18, marginBottom: 8, fontSize: 12, color: "rgb(var(--text-muted))" }}>Subtasks</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>

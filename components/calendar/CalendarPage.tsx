@@ -86,7 +86,7 @@ export default function CalendarPage() {
     if (!createTitle.trim()) return;
     // Bug fix (LifeOS Changes To Make, #3): previously only checked both
     // times were *present*, never that start actually came before end —
-    // a 5:00 PM \u2192 3:00 PM event would have saved without complaint.
+    // a 5:00 PM → 3:00 PM event would have saved without complaint.
     // All-day events skip this entirely; they carry no times at all.
     if (!createAllDay) {
       if (!createStartTime || !createEndTime) {
@@ -107,6 +107,7 @@ export default function CalendarPage() {
       project_id: createProjectId || null,
       start_time: createAllDay ? null : createStartTime,
       end_time: createAllDay ? null : createEndTime,
+      task_id: null,
     });
     setShowCreate(false);
   };
@@ -139,7 +140,7 @@ export default function CalendarPage() {
 
   // Bug fix (LifeOS Changes To Make, #3): the previous version called
   // updateEditingEvent directly from each time input's onChange, which
-  // persisted every keystroke\u2014including a half-typed or inverted range\u2014
+  // persisted every keystroke—including a half-typed or inverted range—
   // straight to Supabase with no check at all. This always mirrors what
   // was typed into the input (so it never fights what you're typing), but
   // only ever persists to the database once both times are set and
