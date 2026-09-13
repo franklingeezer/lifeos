@@ -4,38 +4,21 @@ import { todayISO, toLocalISODate } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
+// GitHub's public Events API only ever returns roughly the last 90 days
+// (or the most recent 300 events, whichever is smaller) — plenty for a
+// "recent activity" dashboard card, not a real history view, which isn't
+// what this card is for anyway. We only look at the newest slice of that.
+const GITHUB_EVENTS_LIMIT = 30;
 const CARD_ITEM_LIMIT = 5;
-const EVENT_LIMIT = 30;
-const COMMIT_LIMIT = 20;
 
 type GithubEvent = {
   id: string;
   type: string;
   created_at: string;
-  repo?: { name: string };
-  payload?: Record<string, unknown>;
-};
-
-type GithubCommitSearchResult = {
-  sha: string;
-  html_url: string;
-  repository: {
-    full_name: string;
-    html_url: string;
-  };
-  commit: {
-    message: string;
-    author?: {
-      date?: string;
-    };
-    committer?: {
-      date?: string;
-    };
-  };
-};
-
-type GithubCommitSearchResponse = {
-  items?: GithubCommitSearchResult[];
+  repo: { name: string };
+  // GitHub's payload shape differs per event type and isn't worth typing
+  // in full for five fields we actually read — see normalizeEvent.
+  payload: Record<string, any>;
 };
 
 export type GithubActivityItem = {
@@ -48,133 +31,46 @@ export type GithubActivityItem = {
   createdAt: string;
 };
 
+// Only the event types the integration spec calls out as useful (pushes,
+// PRs, issues, releases, repo creation) turn into a card line — stars,
+// forks, watches, wiki edits, etc. are noise for "what did I actually do
+// today" and are silently dropped.
 function normalizeEvent(e: GithubEvent): GithubActivityItem | null {
   const repo = e.repo?.name ?? "unknown/repo";
   const repoUrl = `https://github.com/${repo}`;
   const isLifeOS = repo.toLowerCase().endsWith("/lifeos");
-
-  const base = {
-    id: e.id,
-    repo,
-    isLifeOS,
-    createdAt: e.created_at,
-  };
+  const base = { id: e.id, repo, isLifeOS, createdAt: e.created_at };
 
   switch (e.type) {
     case "PushEvent": {
-      const payload = e.payload ?? {};
-      const commits = Array.isArray(payload.commits)
-        ? payload.commits
-        : [];
-
-      if (commits.length === 0) return null;
-
-      const ref =
-        typeof payload.ref === "string"
-          ? payload.ref.replace("refs/heads/", "")
-          : "main";
-
+      const commitCount = e.payload?.commits?.length ?? 0;
+      if (commitCount === 0) return null; // e.g. a branch delete shows up as an empty push
+      const branch = (e.payload?.ref as string | undefined)?.replace("refs/heads/", "") ?? "main";
       return {
         ...base,
         label: `Pushed to ${repo}`,
-        detail: `${commits.length} commit${commits.length === 1 ? "" : "s"}`,
-        url: `${repoUrl}/commits/${ref}`,
+        detail: `${commitCount} commit${commitCount === 1 ? "" : "s"}`,
+        url: `${repoUrl}/commits/${branch}`,
       };
     }
-
     case "PullRequestEvent": {
-      const payload = e.payload ?? {};
-      const action =
-        typeof payload.action === "string" ? payload.action : "";
-
-      if (
-        action !== "opened" &&
-        action !== "closed" &&
-        action !== "reopened"
-      ) {
-        return null;
-      }
-
-      const pr =
-        typeof payload.pull_request === "object" &&
-        payload.pull_request !== null
-          ? (payload.pull_request as {
-              merged?: boolean;
-              title?: string;
-              html_url?: string;
-            })
-          : null;
-
+      const action = e.payload?.action as string | undefined;
+      if (action !== "opened" && action !== "closed" && action !== "reopened") return null;
+      const pr = e.payload?.pull_request;
       const merged = action === "closed" && pr?.merged;
-
-      const verb = merged
-        ? "Merged"
-        : action === "opened"
-          ? "Opened"
-          : action === "reopened"
-            ? "Reopened"
-            : "Closed";
-
-      return {
-        ...base,
-        label: `${verb} PR in ${repo}`,
-        detail: pr?.title ?? null,
-        url: pr?.html_url ?? repoUrl,
-      };
+      const verb = merged ? "Merged" : action === "opened" ? "Opened" : action === "reopened" ? "Reopened" : "Closed";
+      return { ...base, label: `${verb} PR in ${repo}`, detail: pr?.title ?? null, url: pr?.html_url ?? repoUrl };
     }
-
     case "IssuesEvent": {
-      const payload = e.payload ?? {};
-      const action =
-        typeof payload.action === "string" ? payload.action : "";
-
-      if (
-        action !== "opened" &&
-        action !== "closed" &&
-        action !== "reopened"
-      ) {
-        return null;
-      }
-
-      const issue =
-        typeof payload.issue === "object" &&
-        payload.issue !== null
-          ? (payload.issue as {
-              title?: string;
-              html_url?: string;
-            })
-          : null;
-
-      const verb =
-        action === "opened"
-          ? "Opened"
-          : action === "reopened"
-            ? "Reopened"
-            : "Closed";
-
-      return {
-        ...base,
-        label: `${verb} issue in ${repo}`,
-        detail: issue?.title ?? null,
-        url: issue?.html_url ?? repoUrl,
-      };
+      const action = e.payload?.action as string | undefined;
+      if (action !== "opened" && action !== "closed" && action !== "reopened") return null;
+      const issue = e.payload?.issue;
+      const verb = action === "opened" ? "Opened" : action === "reopened" ? "Reopened" : "Closed";
+      return { ...base, label: `${verb} issue in ${repo}`, detail: issue?.title ?? null, url: issue?.html_url ?? repoUrl };
     }
-
     case "ReleaseEvent": {
-      const payload = e.payload ?? {};
-
-      if (payload.action !== "published") return null;
-
-      const release =
-        typeof payload.release === "object" &&
-        payload.release !== null
-          ? (payload.release as {
-              tag_name?: string;
-              name?: string;
-              html_url?: string;
-            })
-          : null;
-
+      if (e.payload?.action !== "published") return null;
+      const release = e.payload?.release;
       return {
         ...base,
         label: `Released ${release?.tag_name ?? ""} in ${repo}`.trim(),
@@ -182,52 +78,22 @@ function normalizeEvent(e: GithubEvent): GithubActivityItem | null {
         url: release?.html_url ?? repoUrl,
       };
     }
-
     case "CreateEvent": {
-      const payload = e.payload ?? {};
-
-      if (payload.ref_type !== "repository") return null;
-
-      return {
-        ...base,
-        label: `Created repository ${repo}`,
-        detail: null,
-        url: repoUrl,
-      };
+      if (e.payload?.ref_type !== "repository") return null; // branch/tag creation is too noisy for this card
+      return { ...base, label: `Created repository ${repo}`, detail: null, url: repoUrl };
     }
-
     default:
       return null;
   }
 }
 
-function normalizeCommit(
-  commit: GithubCommitSearchResult,
-): GithubActivityItem | null {
-  const repo = commit.repository?.full_name;
-
-  if (!repo) return null;
-
-  const createdAt =
-    commit.commit?.author?.date ??
-    commit.commit?.committer?.date;
-
-  if (!createdAt) return null;
-
-  const message =
-    commit.commit?.message?.split("\n")[0]?.trim() || null;
-
-  return {
-    id: `commit-${commit.sha}`,
-    label: `Committed to ${repo}`,
-    detail: message,
-    repo,
-    isLifeOS: repo.toLowerCase().endsWith("/lifeos"),
-    url: commit.html_url ?? commit.repository.html_url,
-    createdAt,
-  };
-}
-
+/**
+ * Always returns 200 with a `configured`/`error` shape rather than a 4xx —
+ * same "the feature degrades, it doesn't crash the page" philosophy as
+ * Inbox's AI classification and the AI Assistant's rate limiter failing
+ * open. The Dashboard card is the thing responsible for turning these
+ * states into a connect prompt, an error line, or the real card.
+ */
 export async function GET() {
   const supabase = createClient();
 
@@ -238,145 +104,75 @@ export async function GET() {
     .maybeSingle();
 
   if (settingsError) {
+    // Most likely cause: phase20_github_integration.sql hasn't been run
+    // against this Supabase project yet, so the column genuinely doesn't
+    // exist yet. Say so plainly instead of a generic failure.
     return NextResponse.json({
       configured: false,
-      error:
-        "Couldn't read GitHub settings — has phase20_github_integration.sql been run yet?",
+      error: "Couldn't read GitHub settings — has phase20_github_integration.sql been run yet?",
     });
   }
 
   const username = settingsRow?.github_username?.trim();
-
   if (!username) {
-    return NextResponse.json({
-      configured: false,
-    });
+    return NextResponse.json({ configured: false });
   }
 
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
-    "User-Agent": "lifeos-dashboard",
-    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "lifeos-dashboard", // GitHub's REST API rejects requests with no User-Agent
   };
-
-  const token = process.env.GITHUB_TOKEN;
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  // Optional — the card works fine unauthenticated (60 requests/hour per
+  // IP is plenty for one person's dashboard, especially cached below), but
+  // a token raises that to 5,000/hour if it's ever needed. Same
+  // "works fully without it" pattern as Web Push's VAPID keys.
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   }
 
-  const activities: GithubActivityItem[] = [];
-
-  /*
-   * 1. Try GitHub's public events API.
-   *
-   * Useful for PRs, issues, releases and push events.
-   * However, GitHub documents that this endpoint can have
-   * significant latency, so it is not our only source.
-   */
+  let response: Response;
   try {
-    const eventsResponse = await fetch(
-      `https://api.github.com/users/${encodeURIComponent(
-        username,
-      )}/events/public?per_page=${EVENT_LIMIT}`,
-      {
-        headers,
-        next: { revalidate: 120 },
-      },
-    );
-
-    if (eventsResponse.ok) {
-      const events = (await eventsResponse.json()) as GithubEvent[];
-
-      activities.push(
-        ...events
-          .map(normalizeEvent)
-          .filter(
-            (item): item is GithubActivityItem => item !== null,
-          ),
-      );
-    } else if (
-      eventsResponse.status !== 404 &&
-      eventsResponse.status !== 403
-    ) {
-      console.error(
-        "GitHub events API error:",
-        eventsResponse.status,
-      );
-    }
-  } catch (error) {
-    console.error("GitHub events fetch failed:", error);
+    response = await fetch(`https://api.github.com/users/${encodeURIComponent(username)}/events/public`, {
+      headers,
+      // Next's Data Cache, not an in-memory Map — shared across
+      // serverless instances the way a plain Map isn't (see
+      // ai-rate-limit.ts's comment on exactly this pitfall), so a burst
+      // of dashboard loads from different Vercel instances still only
+      // hits GitHub once every two minutes, not once per request.
+      next: { revalidate: 120 },
+    });
+  } catch (err) {
+    console.error("GitHub activity fetch failed:", err);
+    return NextResponse.json({ configured: true, username, error: "Couldn't reach GitHub. Try again shortly." });
   }
 
-  /*
-   * 2. Search commits authored by this GitHub username.
-   *
-   * This is the important fallback. It gives LifeOS a reliable
-   * coding-activity signal even when the Events API has not yet
-   * populated the user's event stream.
-   */
-  try {
-    const query = encodeURIComponent(
-      `author:${username}`,
-    );
-
-    const commitsResponse = await fetch(
-      `https://api.github.com/search/commits?q=${query}&sort=committer-date&order=desc&per_page=${COMMIT_LIMIT}`,
-      {
-        headers: {
-          ...headers,
-          Accept: "application/vnd.github+json",
-        },
-        next: { revalidate: 120 },
-      },
-    );
-
-    if (commitsResponse.ok) {
-      const commitData =
-        (await commitsResponse.json()) as GithubCommitSearchResponse;
-
-      const commitActivities = (commitData.items ?? [])
-        .map(normalizeCommit)
-        .filter(
-          (item): item is GithubActivityItem => item !== null,
-        );
-
-      activities.push(...commitActivities);
-    } else {
-      console.error(
-        "GitHub commit search error:",
-        commitsResponse.status,
-      );
-    }
-  } catch (error) {
-    console.error("GitHub commit search failed:", error);
+  if (response.status === 404) {
+    return NextResponse.json({ configured: true, username, error: `GitHub user "${username}" not found.` });
+  }
+  if (response.status === 403) {
+    const remaining = response.headers.get("x-ratelimit-remaining");
+    const message = remaining === "0" ? "GitHub API rate limit hit — try again in a few minutes." : "GitHub API refused the request.";
+    return NextResponse.json({ configured: true, username, error: message });
+  }
+  if (!response.ok) {
+    console.error("GitHub API error:", response.status, await response.text());
+    return NextResponse.json({ configured: true, username, error: "GitHub API returned an unexpected error." });
   }
 
-  /*
-   * Remove duplicates and sort newest first.
-   */
-  const uniqueActivities = Array.from(
-    new Map(
-      activities.map((activity) => [activity.id, activity]),
-    ).values(),
-  ).sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() -
-      new Date(a.createdAt).getTime(),
-  );
+  const events = (await response.json()) as GithubEvent[];
+  const activities = events
+    .slice(0, GITHUB_EVENTS_LIMIT)
+    .map(normalizeEvent)
+    .filter((a): a is GithubActivityItem => a !== null);
 
   const today = todayISO();
-
-  const todayCount = uniqueActivities.filter(
-    (activity) =>
-      toLocalISODate(new Date(activity.createdAt)) === today,
-  ).length;
+  const todayCount = activities.filter((a) => toLocalISODate(new Date(a.createdAt)) === today).length;
 
   return NextResponse.json({
     configured: true,
     username,
     profileUrl: `https://github.com/${username}`,
     todayCount,
-    activities: uniqueActivities.slice(0, CARD_ITEM_LIMIT),
+    activities: activities.slice(0, CARD_ITEM_LIMIT),
   });
 }

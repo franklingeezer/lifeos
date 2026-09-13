@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { mutate } from "swr";
-import { User, Palette, Coins, Trash2, Check, Sun, Moon, Database, Loader2, Download, Bell, BellOff, Github } from "lucide-react";
+import { User, Palette, Coins, Trash2, Check, Sun, Moon, Database, Loader2, Download, Bell, BellOff, Github, AlertCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import Sidebar from "@/components/shell/Sidebar";
 import { CURRENCY_SYMBOL_KEY } from "@/hooks/useCurrencySymbol";
@@ -29,7 +29,7 @@ export default function SettingsPage() {
     lastfm_username: null,
   });
   const [loading, setLoading] = useState(true);
-  const [saved, setSaved] = useState<"idle" | "saving" | "saved">("idle");
+  const [saved, setSaved] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [theme, setThemeState] = useState<"dark" | "light">("dark");
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [clearedMsg, setClearedMsg] = useState<string | null>(null);
@@ -59,19 +59,25 @@ export default function SettingsPage() {
   };
 
   const saveSettings = async (patch: Partial<Settings>) => {
+    const previous = settings; // kept so a failed write can be rolled back, not just left showing a value that was never actually saved
     const next = { ...settings, ...patch };
     setSettings(next);
     setSaved("saving");
     const { error } = await supabase.from("app_settings").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", 1);
-    setSaved(error ? "idle" : "saved");
-    if (!error) {
-      setTimeout(() => setSaved("idle"), 1800);
-      // Push the new symbol straight into Finance/Debts/Dashboard's shared
-      // cache so they update immediately, instead of waiting for those
-      // pages to happen to revalidate on their own next mount/focus.
-      if (patch.currency_symbol) {
-        mutate(CURRENCY_SYMBOL_KEY, patch.currency_symbol, { revalidate: false });
-      }
+    if (error) {
+      console.error("Failed to save settings:", error);
+      setSettings(previous); // undo the optimistic update — the field(s) that changed re-key and visually snap back to the last known-saved value
+      setSaved("error");
+      setTimeout(() => setSaved("idle"), 4000);
+      return;
+    }
+    setSaved("saved");
+    setTimeout(() => setSaved("idle"), 1800);
+    // Push the new symbol straight into Finance/Debts/Dashboard's shared
+    // cache so they update immediately, instead of waiting for those
+    // pages to happen to revalidate on their own next mount/focus.
+    if (patch.currency_symbol) {
+      mutate(CURRENCY_SYMBOL_KEY, patch.currency_symbol, { revalidate: false });
     }
   };
 
@@ -190,13 +196,13 @@ export default function SettingsPage() {
               <div
                 className="save-badge"
                 style={{
-                  background: saved === "saved" ? "rgb(var(--accent) / 0.12)" : "rgb(var(--surface-2))",
-                  color: saved === "saved" ? "rgb(var(--accent))" : "rgb(var(--text-muted))",
-                  border: `1px solid ${saved === "saved" ? "rgb(var(--accent) / 0.3)" : "rgb(var(--border))"}`,
+                  background: saved === "saved" ? "rgb(var(--accent) / 0.12)" : saved === "error" ? "rgb(var(--danger) / 0.12)" : "rgb(var(--surface-2))",
+                  color: saved === "saved" ? "rgb(var(--accent))" : saved === "error" ? "rgb(var(--danger))" : "rgb(var(--text-muted))",
+                  border: `1px solid ${saved === "saved" ? "rgb(var(--accent) / 0.3)" : saved === "error" ? "rgb(var(--danger) / 0.3)" : "rgb(var(--border))"}`,
                 }}
               >
-                {saved === "saved" ? <Check size={13} /> : <Loader2 size={13} className="spin" />}
-                {saved === "saved" ? "Saved" : "Saving…"}
+                {saved === "saved" ? <Check size={13} /> : saved === "error" ? <AlertCircle size={13} /> : <Loader2 size={13} className="spin" />}
+                {saved === "saved" ? "Saved" : saved === "error" ? "Couldn't save — try again" : "Saving…"}
               </div>
             )}
           </div>
