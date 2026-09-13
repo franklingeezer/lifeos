@@ -12,6 +12,7 @@ import { useDashboardData, type DashboardTask } from "@/hooks/useDashboardData";
 import { useCurrencySymbol } from "@/hooks/useCurrencySymbol";
 import InboxQuickCapture from "@/components/inbox/InboxQuickCapture";
 import GithubActivityCard from "@/components/dashboard/GithubActivityCard";
+import LastfmNowPlayingCard from "@/components/dashboard/LastfmNowPlayingCard";
 
 const THEME_KEY = "lifeos-theme";
 const WEEK_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -358,14 +359,19 @@ export default function Dashboard() {
 
         {/* Personal Activity — external signals live in their own section,
             deliberately separate from the LifeOS-native cards above, per
-            the integrations design doc. GitHub today; a Spotify Now
-            Playing card (Phase 4/5 of that doc, OAuth-gated) is planned
-            to sit alongside it in this same row later. */}
+            the integrations design doc. GitHub + Last.fm side by side,
+            each getting half the row. (Last.fm stands in for Spotify —
+            Spotify's Developer Mode now requires the app owner to have
+            Premium, which blocked that path; Last.fm gives the same
+            "what am I listening to" signal via scrobbling instead.) */}
         <div style={{ marginTop: 22 }}>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Personal Activity</div>
           <div className="lifeos-dashboard-grid">
-            <div style={{ gridColumn: "span 12" }}>
+            <div style={{ gridColumn: "span 6" }}>
               <GithubActivityCard />
+            </div>
+            <div style={{ gridColumn: "span 6" }}>
+              <LastfmNowPlayingCard />
             </div>
           </div>
         </div>

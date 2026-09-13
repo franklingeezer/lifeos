@@ -1,0 +1,22 @@
+-- LifeOS Roadmap — Personal Activity, Part 2 (revised): Last.fm instead of Spotify
+--
+-- Spotify's Developer Mode now requires the app owner to have an active
+-- Premium subscription (a policy change from March 2026) — a hard wall
+-- for a free-tier account, so that path is parked. Last.fm replaces it:
+-- same "what am I listening to" signal, but as a scrobbling layer that
+-- sits on top of whatever you actually play music with (Spotify,
+-- YouTube Music, local files, anything with a scrobbler), and its read
+-- API needs nothing more than a username and a free API key — no OAuth,
+-- no refresh tokens, no Premium gate.
+--
+-- That's also why this is a single text column on app_settings (same
+-- shape as github_username in phase20) rather than a new
+-- service-role-only table like phase21's spotify_tokens: there's no
+-- credential here that needs hiding from the client. A Last.fm username
+-- is public data — same trust level as a GitHub username, not like an
+-- OAuth refresh token.
+--
+-- phase21_spotify_integration.sql's spotify_tokens table is harmless to
+-- leave in place if you already ran it (nothing references it anymore),
+-- or fine to skip entirely if you didn't get that far.
+alter table app_settings add column if not exists lastfm_username text;

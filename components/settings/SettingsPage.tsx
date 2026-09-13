@@ -14,6 +14,7 @@ type Settings = {
   currency_code: string;
   currency_symbol: string;
   github_username: string | null;
+  lastfm_username: string | null;
 };
 
 const THEME_KEY = "lifeos-theme";
@@ -25,6 +26,7 @@ export default function SettingsPage() {
     currency_code: "BDT",
     currency_symbol: "৳",
     github_username: null,
+    lastfm_username: null,
   });
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState<"idle" | "saving" | "saved">("idle");
@@ -41,7 +43,7 @@ export default function SettingsPage() {
     const load = async () => {
       const { data } = await supabase
         .from("app_settings")
-        .select("display_name, currency_code, currency_symbol, github_username")
+        .select("display_name, currency_code, currency_symbol, github_username, lastfm_username")
         .eq("id", 1)
         .maybeSingle();
       if (data) setSettings(data as Settings);
@@ -278,9 +280,26 @@ export default function SettingsPage() {
                     className="settings-input"
                   />
                 </SettingsRow>
+                <SettingsRow label="Last.fm username" hint="Shows what you're currently listening to (or last played) on the Dashboard, via scrobbling. Leave blank to hide the card.">
+                  <input
+                    key={settings.lastfm_username ?? ""}
+                    defaultValue={settings.lastfm_username ?? ""}
+                    placeholder="e.g. rj"
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      const next = v.length > 0 ? v : null;
+                      if (next !== settings.lastfm_username) {
+                        saveSettings({ lastfm_username: next });
+                        // Own SWR key, same reasoning as the GitHub field
+                        // above — revalidate immediately rather than
+                        // waiting for the card's own poll interval.
+                        mutate("/api/lastfm/now-playing");
+                      }
+                    }}
+                    className="settings-input"
+                  />
+                </SettingsRow>
               </SettingsCard>
-
-              {/* Push notifications */}
               <SettingsCard
                 icon={push.status === "subscribed" ? Bell : BellOff}
                 title="Push notifications"
