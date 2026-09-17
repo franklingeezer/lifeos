@@ -3,12 +3,13 @@
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
-  Plus, Search, LayoutList, Columns3, X, Trash2, Circle, CheckCircle2, FolderKanban, Sparkles, Loader2, CalendarClock,
+  Plus, Search, LayoutList, Columns3, X, Trash2, Circle, CheckCircle2, FolderKanban, Sparkles, Loader2, CalendarClock, Repeat,
 } from "lucide-react";
 import Sidebar from "@/components/shell/Sidebar";
 import { useTasks, type Priority, type Status, type Task } from "@/hooks/useTasks";
 import { useProjects } from "@/hooks/useProjects";
 import { useCalendar } from "@/hooks/useCalendar";
+import { useTaskSeries } from "@/hooks/useTaskSeries";
 
 const COLUMNS: { key: Status; label: string }[] = [
   { key: "todo", label: "To do" },
@@ -35,6 +36,11 @@ const DURATION_OPTIONS: { value: string; label: string }[] = [
   { value: "240", label: "4 hr" },
 ];
 
+// Roadmap — Recurring Tasks, Part 3. Index matches JS Date.getDay()
+// (0=Sun..6=Sat) exactly, same convention lib/recurrence.ts uses — no
+// translation needed anywhere between the picker and the stored data.
+const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+
 export default function TasksPage() {
   const {
     tasks, isLoading, error,
@@ -43,6 +49,7 @@ export default function TasksPage() {
   } = useTasks();
   const { projects } = useProjects();
   const { createEvent } = useCalendar();
+  const { createSeries, stopSeries } = useTaskSeries();
   const projectNameById = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]
@@ -103,6 +110,16 @@ export default function TasksPage() {
   const [newProjectId, setNewProjectId] = useState("");
   const [newEstimatedMinutes, setNewEstimatedMinutes] = useState("");
 
+  // Roadmap — Recurring Tasks, Part 3.
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [repeatFrequency, setRepeatFrequency] = useState<"daily" | "weekly" | "monthly">("weekly");
+  const [repeatInterval, setRepeatInterval] = useState("1");
+  const [repeatDaysOfWeek, setRepeatDaysOfWeek] = useState<number[]>([]);
+  const [repeatDayOfMonth, setRepeatDayOfMonth] = useState("");
+  const [repeatEndDate, setRepeatEndDate] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
   const [subtaskInput, setSubtaskInput] = useState("");
 
   const editingTask = tasks.find((t) => t.id === editingId) ?? null;
@@ -116,20 +133,61 @@ export default function TasksPage() {
   // ---- form handlers (the hook owns the actual mutations now) ----
   const handleCreateTask = async () => {
     if (!newTitle.trim()) return;
-    await createTask({
-      title: newTitle.trim(),
-      category: newCategory.trim() || null,
-      priority: newPriority,
-      due_date: newDue || null,
-      project_id: newProjectId || null,
-      estimated_minutes: newEstimatedMinutes ? parseInt(newEstimatedMinutes, 10) : null,
-    });
+    setCreateError(null);
+
+    if (repeatEnabled) {
+      // A repeating task needs a real start date — "every Monday" has no
+      // meaning without a first Monday to count from, so this is required
+      // here even though a plain (non-repeating) due date stays optional.
+      if (!newDue) {
+        setCreateError("Pick a start date for the repeat.");
+        return;
+      }
+      setCreating(true);
+      try {
+        await createSeries({
+          title: newTitle.trim(),
+          category: newCategory.trim() || null,
+          priority: newPriority,
+          project_id: newProjectId || null,
+          estimated_minutes: newEstimatedMinutes ? parseInt(newEstimatedMinutes, 10) : null,
+          frequency: repeatFrequency,
+          interval_count: parseInt(repeatInterval, 10) || 1,
+          days_of_week: repeatFrequency === "weekly" && repeatDaysOfWeek.length > 0 ? repeatDaysOfWeek : null,
+          day_of_month: repeatFrequency === "monthly" && repeatDayOfMonth ? parseInt(repeatDayOfMonth, 10) : null,
+          start_date: newDue,
+          end_date: repeatEndDate || null,
+        });
+      } catch {
+        setCreateError("Couldn't create the recurring task — try again.");
+        return;
+      } finally {
+        setCreating(false);
+      }
+    } else {
+      await createTask({
+        title: newTitle.trim(),
+        category: newCategory.trim() || null,
+        priority: newPriority,
+        due_date: newDue || null,
+        project_id: newProjectId || null,
+        estimated_minutes: newEstimatedMinutes ? parseInt(newEstimatedMinutes, 10) : null,
+      });
+    }
+
     setNewTitle("");
     setNewCategory("");
     setNewPriority("med");
     setNewDue("");
     setNewProjectId("");
     setNewEstimatedMinutes("");
+    setRepeatEnabled(false);
+    setRepeatFrequency("weekly");
+    setRepeatInterval("1");
+    setRepeatDaysOfWeek([]);
+    setRepeatDayOfMonth("");
+    setRepeatEndDate("");
+    setCreateError(null);
     setShowCreate(false);
   };
 
@@ -157,11 +215,26 @@ export default function TasksPage() {
   } | null>(null);
   const [scheduleAccepting, setScheduleAccepting] = useState(false);
 
+  // Roadmap — Recurring Tasks, Part 3.
+  const [stoppingSeries, setStoppingSeries] = useState(false);
+  const [seriesStopped, setSeriesStopped] = useState(false);
+
   // A stale proposal from a previously-open task should never carry over
   // when switching to (or closing) the edit drawer for a different one.
   useEffect(() => {
     setScheduleProposal(null);
+    setSeriesStopped(false);
   }, [editingId]);
+
+  const handleStopSeries = async (seriesId: string) => {
+    setStoppingSeries(true);
+    try {
+      await stopSeries(seriesId);
+      setSeriesStopped(true);
+    } finally {
+      setStoppingSeries(false);
+    }
+  };
 
   const handleFindSlot = async (taskId: string) => {
     setSchedulingTaskId(taskId);
@@ -261,7 +334,16 @@ export default function TasksPage() {
             </div>
 
             <button
-              onClick={() => setShowCreate(true)}
+              onClick={() => {
+                setRepeatEnabled(false);
+                setRepeatFrequency("weekly");
+                setRepeatInterval("1");
+                setRepeatDaysOfWeek([]);
+                setRepeatDayOfMonth("");
+                setRepeatEndDate("");
+                setCreateError(null);
+                setShowCreate(true);
+              }}
               style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer" }}
             >
               <Plus size={15} /> New task
@@ -333,7 +415,10 @@ export default function TasksPage() {
                           padding: 12, cursor: "grab",
                         }}
                       >
-                        <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 6 }}>{t.title}</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                          {t.series_id && <Repeat size={11} color="rgb(var(--text-muted))" style={{ flexShrink: 0 }} />}
+                          <span>{t.title}</span>
+                        </div>
                         {t.project_id && projectNameById.get(t.project_id) && (
                           <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6, color: "#5FA8D3" }}>
                             <FolderKanban size={10} />
@@ -382,7 +467,10 @@ export default function TasksPage() {
                 >
                   {t.status === "done" ? <CheckCircle2 size={17} color="rgb(var(--accent))" /> : <Circle size={17} color="rgb(var(--text-muted))" />}
                 </div>
-                <span style={{ fontSize: 13.5, flex: 1, textDecoration: t.status === "done" ? "line-through" : "none", opacity: t.status === "done" ? 0.55 : 1 }}>{t.title}</span>
+                <span style={{ fontSize: 13.5, flex: 1, display: "flex", alignItems: "center", gap: 5, textDecoration: t.status === "done" ? "line-through" : "none", opacity: t.status === "done" ? 0.55 : 1 }}>
+                  {t.series_id && <Repeat size={11} color="rgb(var(--text-muted))" style={{ flexShrink: 0 }} />}
+                  {t.title}
+                </span>
                 {t.subtasks.length > 0 && (
                   <span className="font-mono" style={{ fontSize: 11, color: "rgb(var(--text-muted))" }}>
                     {t.subtasks.filter((s) => s.done).length}/{t.subtasks.length}
@@ -447,7 +535,7 @@ export default function TasksPage() {
                 <option value="high">High</option>
               </select>
             </FormField>
-            <FormField label="Due date">
+            <FormField label={repeatEnabled ? "Starts on" : "Due date"}>
               <input type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)} style={inputStyle} />
             </FormField>
             <FormField label="Estimated time">
@@ -456,11 +544,70 @@ export default function TasksPage() {
               </select>
             </FormField>
 
+            <FormField label="">
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "rgb(var(--text))", cursor: "pointer" }}>
+                <input type="checkbox" checked={repeatEnabled} onChange={(e) => { setRepeatEnabled(e.target.checked); setCreateError(null); }} style={{ accentColor: "rgb(var(--accent))" }} />
+                <Repeat size={13} color="rgb(var(--text-muted))" /> Repeat
+              </label>
+            </FormField>
+
+            {repeatEnabled && (
+              <div style={{ padding: "10px 12px", borderRadius: 10, background: "rgb(var(--surface-2))", border: "1px solid rgb(var(--border))", marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <FormField label="Frequency">
+                    <select value={repeatFrequency} onChange={(e) => setRepeatFrequency(e.target.value as typeof repeatFrequency)} style={inputStyle}>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </FormField>
+                  <FormField label={`Every ${repeatInterval || "1"} ${repeatFrequency === "daily" ? "day(s)" : repeatFrequency === "weekly" ? "week(s)" : "month(s)"}`}>
+                    <input type="number" min={1} value={repeatInterval} onChange={(e) => setRepeatInterval(e.target.value)} style={inputStyle} />
+                  </FormField>
+                </div>
+
+                {repeatFrequency === "weekly" && (
+                  <FormField label="On these days (defaults to the start date's day if none picked)">
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {WEEKDAY_LABELS.map((label, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setRepeatDaysOfWeek((prev) => (prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx]))}
+                          style={{
+                            width: 28, height: 28, borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                            background: repeatDaysOfWeek.includes(idx) ? "rgb(var(--accent) / 0.15)" : "rgb(var(--surface))",
+                            border: `1px solid ${repeatDaysOfWeek.includes(idx) ? "rgb(var(--accent) / 0.4)" : "rgb(var(--border))"}`,
+                            color: repeatDaysOfWeek.includes(idx) ? "rgb(var(--accent))" : "rgb(var(--text-muted))",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </FormField>
+                )}
+
+                {repeatFrequency === "monthly" && (
+                  <FormField label="Day of month (optional — defaults to the start date's day)">
+                    <input type="number" min={1} max={31} placeholder="e.g. 15" value={repeatDayOfMonth} onChange={(e) => setRepeatDayOfMonth(e.target.value)} style={inputStyle} />
+                  </FormField>
+                )}
+
+                <FormField label="Ends on (optional)">
+                  <input type="date" value={repeatEndDate} onChange={(e) => setRepeatEndDate(e.target.value)} style={inputStyle} />
+                </FormField>
+              </div>
+            )}
+
+            {createError && <div style={{ fontSize: 12, color: "rgb(var(--danger))", marginTop: -6, marginBottom: 12 }}>{createError}</div>}
+
             <button
               onClick={handleCreateTask}
-              style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: "pointer" }}
+              disabled={creating}
+              style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, background: "rgb(var(--accent))", color: "rgb(var(--bg))", fontWeight: 600, fontSize: 13, border: "none", cursor: creating ? "default" : "pointer", opacity: creating ? 0.7 : 1 }}
             >
-              Create task
+              {creating ? "Creating…" : "Create task"}
             </button>
           </div>
         </div>
@@ -608,6 +755,32 @@ export default function TasksPage() {
                   {scheduleProposal.candidate ? "Dismiss" : "OK"}
                 </button>
               </div>
+            </div>
+          )}
+
+          {editingTask.series_id && (
+            <div
+              style={{
+                marginBottom: 16, padding: "10px 12px", borderRadius: 10, background: "rgb(var(--surface-2))",
+                border: "1px solid rgb(var(--border))", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgb(var(--text-muted))" }}>
+                <Repeat size={13} />
+                {seriesStopped ? "Repeating stopped — this and past occurrences are unaffected" : "Part of a repeating series"}
+              </div>
+              {!seriesStopped && (
+                <button
+                  onClick={() => handleStopSeries(editingTask.series_id!)}
+                  disabled={stoppingSeries}
+                  style={{
+                    flexShrink: 0, padding: "5px 10px", borderRadius: 8, background: "transparent", color: "rgb(var(--danger))",
+                    fontSize: 11.5, fontWeight: 600, border: "1px solid rgb(var(--border))", cursor: stoppingSeries ? "default" : "pointer",
+                  }}
+                >
+                  {stoppingSeries ? "Stopping…" : "Stop repeating"}
+                </button>
+              )}
             </div>
           )}
 

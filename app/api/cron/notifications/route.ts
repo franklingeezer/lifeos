@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendPushToUser } from "@/lib/push/server";
 import { todayISO } from "@/lib/date";
+import { resolveNextGeneration, type RecurrenceRule } from "@/lib/recurrence";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,82 @@ export const dynamic = "force-dynamic";
 function isAuthorized(req: NextRequest) {
   const auth = req.headers.get("authorization");
   return auth === `Bearer ${process.env.CRON_SECRET}`;
+}
+
+type TaskSeriesRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  category: string | null;
+  priority: string;
+  project_id: string | null;
+  estimated_minutes: number | null;
+  frequency: RecurrenceRule["frequency"];
+  interval_count: number;
+  days_of_week: number[] | null;
+  day_of_month: number | null;
+  start_date: string;
+  end_date: string | null;
+  next_due_date: string;
+};
+
+/**
+ * LifeOS Roadmap — Recurring Tasks, Part 2.
+ *
+ * Deliberately its own top-level pass, not folded into generateDueNotifications
+ * below or gated behind push_subscriptions the way the rest of this route
+ * is — a user who's never turned on push notifications should still get
+ * their recurring tasks generated. Whether you're *notified* about a task
+ * and whether the task *exists* are unrelated concerns; this route just
+ * happens to be the one "runs every 5 minutes" hook the app already has.
+ */
+async function generateDueRecurringTasks(supabase: ReturnType<typeof createServiceClient>) {
+  const today = todayISO();
+
+  const { data: dueSeries } = await supabase
+    .from("task_series")
+    .select("id, user_id, title, category, priority, project_id, estimated_minutes, frequency, interval_count, days_of_week, day_of_month, start_date, end_date, next_due_date")
+    .eq("active", true)
+    .lte("next_due_date", today);
+
+  let generated = 0;
+
+  for (const series of (dueSeries ?? []) as TaskSeriesRow[]) {
+    const rule: RecurrenceRule = {
+      frequency: series.frequency,
+      interval_count: series.interval_count,
+      days_of_week: series.days_of_week,
+      day_of_month: series.day_of_month,
+      start_date: series.start_date,
+    };
+
+    // Collapses any backlog (a series that's fallen behind — server
+    // downtime, a long pause since reactivated) into a single catch-up
+    // task for the most recent due date, rather than flooding Tasks with
+    // every date that was missed in between. See lib/recurrence.ts.
+    const { occurrenceDate, newNextDueDate } = resolveNextGeneration(series.next_due_date, today, rule);
+
+    // A series with an end_date naturally concludes once its next
+    // occurrence would fall past it — deactivate rather than keep
+    // querying a series that will never generate anything again.
+    const stillActive = !series.end_date || newNextDueDate <= series.end_date;
+
+    await supabase.from("tasks").insert({
+      user_id: series.user_id,
+      title: series.title,
+      category: series.category,
+      priority: series.priority,
+      project_id: series.project_id,
+      estimated_minutes: series.estimated_minutes,
+      due_date: occurrenceDate,
+      series_id: series.id,
+    });
+    generated += 1;
+
+    await supabase.from("task_series").update({ next_due_date: newNextDueDate, active: stillActive }).eq("id", series.id);
+  }
+
+  return generated;
 }
 
 /**
@@ -112,14 +189,17 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServiceClient();
 
-  // Scope work to users who actually have an active push subscription —
-  // no subscriptions means nothing to deliver, regardless of how many
-  // reminders/overdue tasks exist.
+  // Independent of push subscriptions entirely — see generateDueRecurringTasks.
+  const tasksGenerated = await generateDueRecurringTasks(supabase);
+
+  // Scope the notification/push work to users who actually have an active
+  // push subscription — no subscriptions means nothing to deliver,
+  // regardless of how many reminders/overdue tasks exist.
   const { data: subs } = await supabase.from("push_subscriptions").select("user_id");
   const userIds = [...new Set((subs ?? []).map((s) => s.user_id))];
 
   if (userIds.length === 0) {
-    return NextResponse.json({ ok: true, users: 0, delivered: 0 });
+    return NextResponse.json({ ok: true, users: 0, delivered: 0, tasksGenerated });
   }
 
   let totalDelivered = 0;
@@ -128,5 +208,5 @@ export async function GET(req: NextRequest) {
     totalDelivered += await deliverPendingPush(supabase, userId);
   }
 
-  return NextResponse.json({ ok: true, users: userIds.length, delivered: totalDelivered });
+  return NextResponse.json({ ok: true, users: userIds.length, delivered: totalDelivered, tasksGenerated });
 }

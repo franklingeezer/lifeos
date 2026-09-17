@@ -19,6 +19,9 @@ export type Task = {
   // tasks never set this, and the scheduler (lib/scheduler.ts) simply
   // can't propose a slot without it rather than guessing a duration.
   estimated_minutes: number | null;
+  // Roadmap — Recurring Tasks, Part 3. Set only on a task generated from
+  // a task_series (see lib/recurrence.ts); null for every normal task.
+  series_id: string | null;
   subtasks: Subtask[];
 };
 
@@ -30,7 +33,7 @@ const TASKS_KEY = "tasks";
 async function fetchTasks(supabase: ReturnType<typeof createClient>): Promise<Task[]> {
   const { data, error } = await supabase
     .from("tasks")
-    .select("id, title, category, priority, status, due_date, project_id, estimated_minutes, subtasks(id, title, done, position)")
+    .select("id, title, category, priority, status, due_date, project_id, estimated_minutes, series_id, subtasks(id, title, done, position)")
     .order("created_at", { ascending: true });
 
   if (error) throw error;
