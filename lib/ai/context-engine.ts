@@ -82,6 +82,26 @@ export interface TaskSummary {
   status: string;
   due_date: string | null;
   project_id: string | null;
+  // Roadmap — Plan My Day, Part 3a. All three are OPTIONAL and only set
+  // when they apply (a task with no estimate simply has no
+  // estimated_minutes key), so they add nothing to the serialized size of
+  // tasks that don't use them — most tasks, for every AI route that
+  // stringifies this shape.
+  /** The user's own time estimate for the task, in minutes. Never inferred or defaulted. */
+  estimated_minutes?: number;
+  /** True when this task is an occurrence of a recurring series. */
+  recurring?: true;
+  /** The task's earliest calendar block that hasn't ended yet (today or later), if it has one. */
+  next_block?: { date: string; start_time: string; end_time: string };
+}
+
+/** A timed calendar block set aside for a task (events.task_id). */
+export interface ScheduledBlock {
+  task_id: string;
+  title: string;
+  date: string;
+  start_time: string;
+  end_time: string;
 }
 
 export interface TasksContext {
@@ -92,6 +112,20 @@ export interface TasksContext {
   /** High priority, no due date at all — easy to lose track of otherwise. */
   no_due_date_high_priority: TaskSummary[];
   open_count: number;
+  /** Roadmap — Plan My Day, Part 3a. Blocks on today's calendar for still-open tasks that haven't finished yet (upcoming or in progress), earliest first. */
+  scheduled_today: ScheduledBlock[];
+  /** Blocks (within the last 7 days) whose time has passed with the task still open — the same set the Dashboard's Missed Blocks card offers to reschedule. Oldest first, capped. */
+  missed_blocks: ScheduledBlock[];
+  /**
+   * Total of the user's own estimates across overdue + due-today tasks —
+   * the work that wants attention now. A sum of real estimates only:
+   * tasks without one contribute nothing here and are counted in
+   * due_now_unestimated_count instead, so the total is never padded with
+   * a guess. Comparable against calendar.today_free_blocks.
+   */
+  due_now_estimated_minutes: number;
+  /** How many overdue + due-today tasks have no estimate, i.e. how incomplete due_now_estimated_minutes is. */
+  due_now_unestimated_count: number;
 }
 
 export interface ProjectLinkedSummary {
@@ -227,22 +261,87 @@ export interface LifeOSContext {
 
 // ---------- Section builders ----------
 
-async function buildTasks(supabase: SupabaseClient, today: string, lookaheadDays: number): Promise<TasksContext> {
-  const { data } = await supabase
-    .from("tasks")
-    .select("id, title, tag, category, priority, status, due_date, project_id")
-    .neq("status", "done")
-    .order("due_date", { ascending: true, nullsFirst: false });
+// How far back a block can have been missed and still be worth surfacing,
+// and how many are listed — same window lib/rollover.ts uses, so the AI
+// and the Dashboard card describe the same set of missed blocks.
+const MISSED_LOOKBACK_DAYS = 7;
+const MISSED_BLOCKS_CAP = 10;
 
-  const tasks = (data ?? []) as TaskSummary[];
+async function buildTasks(supabase: SupabaseClient, today: string, lookaheadDays: number): Promise<TasksContext> {
+  // One extra, independent query (run in parallel) for the calendar blocks
+  // linked to tasks, instead of a per-task lookup.
+  const [{ data }, { data: blockRows }] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select("id, title, tag, category, priority, status, due_date, project_id, estimated_minutes, series_id")
+      .neq("status", "done")
+      .order("due_date", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("events")
+      .select("task_id, date, start_time, end_time")
+      .not("task_id", "is", null)
+      .eq("all_day", false)
+      .gte("date", addDaysISO(today, -MISSED_LOOKBACK_DAYS))
+      .order("date", { ascending: true })
+      .order("start_time", { ascending: true }),
+  ]);
+
+  const rows = (data ?? []) as (Omit<TaskSummary, "estimated_minutes" | "recurring" | "next_block"> & {
+    estimated_minutes: number | null;
+    series_id: string | null;
+  })[];
+  const titleById = new Map(rows.map((r) => [r.id, r.title]));
+  const nowMins = nowMinutesOfDay();
+
+  // Only open tasks are in `rows`, so a block belonging to a finished task
+  // is simply never matched — completed work isn't "missed".
+  const nextBlockByTask = new Map<string, NonNullable<TaskSummary["next_block"]>>();
+  const scheduledToday: ScheduledBlock[] = [];
+  const missedBlocks: ScheduledBlock[] = [];
+
+  for (const b of blockRows ?? []) {
+    const title = b.task_id ? titleById.get(b.task_id as string) : undefined;
+    if (!title || !b.start_time || !b.end_time) continue;
+
+    const block: ScheduledBlock = { task_id: b.task_id as string, title, date: b.date, start_time: b.start_time, end_time: b.end_time };
+    const ended = b.date < today || (b.date === today && timeToMinutes(b.end_time) <= nowMins);
+
+    if (ended) {
+      missedBlocks.push(block);
+      continue;
+    }
+    if (!nextBlockByTask.has(block.task_id)) {
+      nextBlockByTask.set(block.task_id, { date: block.date, start_time: block.start_time, end_time: block.end_time });
+    }
+    if (block.date === today) scheduledToday.push(block);
+  }
+
+  // Optional fields are assigned only when they apply (see TaskSummary),
+  // so a plain task serializes exactly as it did before this change.
+  const tasks: TaskSummary[] = rows.map(({ estimated_minutes, series_id, ...base }) => {
+    const task: TaskSummary = { ...base };
+    if (estimated_minutes && estimated_minutes > 0) task.estimated_minutes = estimated_minutes;
+    if (series_id) task.recurring = true;
+    const next = nextBlockByTask.get(base.id);
+    if (next) task.next_block = next;
+    return task;
+  });
+
   const soonCutoff = addDaysISO(today, lookaheadDays);
+  const overdue = tasks.filter((t) => t.due_date && t.due_date < today);
+  const dueToday = tasks.filter((t) => t.due_date === today);
+  const dueNow = [...overdue, ...dueToday];
 
   return {
-    overdue: tasks.filter((t) => t.due_date && t.due_date < today),
-    due_today: tasks.filter((t) => t.due_date === today),
+    overdue,
+    due_today: dueToday,
     due_soon: tasks.filter((t) => t.due_date && t.due_date > today && t.due_date <= soonCutoff),
     no_due_date_high_priority: tasks.filter((t) => !t.due_date && t.priority === "high"),
     open_count: tasks.length,
+    scheduled_today: scheduledToday,
+    missed_blocks: missedBlocks.slice(0, MISSED_BLOCKS_CAP),
+    due_now_estimated_minutes: dueNow.reduce((sum, t) => sum + (t.estimated_minutes ?? 0), 0),
+    due_now_unestimated_count: dueNow.filter((t) => !t.estimated_minutes).length,
   };
 }
 

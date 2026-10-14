@@ -13,6 +13,7 @@ import { useCurrencySymbol } from "@/hooks/useCurrencySymbol";
 import InboxQuickCapture from "@/components/inbox/InboxQuickCapture";
 import GithubActivityCard from "@/components/dashboard/GithubActivityCard";
 import LastfmNowPlayingCard from "@/components/dashboard/LastfmNowPlayingCard";
+import RolloverCard from "@/components/dashboard/RolloverCard";
 
 const THEME_KEY = "lifeos-theme";
 const WEEK_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -176,6 +177,9 @@ export default function Dashboard() {
         <div style={{ marginBottom: 22 }}>
           <InboxQuickCapture placeholder="Quick capture — sort it out later…" />
         </div>
+
+        {/* Plan My Day — Rollover. Renders nothing unless a scheduled block went by with its task unfinished. */}
+        <RolloverCard />
 
         <div className="lifeos-dashboard-grid">
           {/* Tasks — live */}

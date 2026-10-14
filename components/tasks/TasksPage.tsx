@@ -10,6 +10,9 @@ import { useTasks, type Priority, type Status, type Task } from "@/hooks/useTask
 import { useProjects } from "@/hooks/useProjects";
 import { useCalendar } from "@/hooks/useCalendar";
 import { useTaskSeries } from "@/hooks/useTaskSeries";
+import { ROLLOVER_KEY } from "@/hooks/useRollover";
+import { todayISO, nowMinutesOfDay } from "@/lib/date";
+import { useSWRConfig } from "swr";
 
 const COLUMNS: { key: Status; label: string }[] = [
   { key: "todo", label: "To do" },
@@ -48,7 +51,8 @@ export default function TasksPage() {
     addSubtask, toggleSubtask, deleteSubtask,
   } = useTasks();
   const { projects } = useProjects();
-  const { createEvent } = useCalendar();
+  const { events, createEvent, updateEvent } = useCalendar();
+  const { mutate } = useSWRConfig();
   const { createSeries, stopSeries } = useTaskSeries();
   const projectNameById = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
@@ -212,8 +216,15 @@ export default function TasksPage() {
     taskId: string;
     candidate: { date: string; start_time: string; end_time: string } | null;
     reason: string;
+    // Plan My Day follow-up: set when the proposal is for MOVING a block
+    // the task already has, rather than adding a second one. null = add.
+    moveEventId: string | null;
   } | null>(null);
   const [scheduleAccepting, setScheduleAccepting] = useState(false);
+  // Says plainly what the last Accept did — "moved" or "added" — so there's
+  // never any doubt which of the two happened (the two buttons sit side by
+  // side, and both end with the proposal disappearing).
+  const [scheduleResult, setScheduleResult] = useState<{ taskId: string; text: string } | null>(null);
 
   // Roadmap — Recurring Tasks, Part 3.
   const [stoppingSeries, setStoppingSeries] = useState(false);
@@ -223,8 +234,18 @@ export default function TasksPage() {
   // when switching to (or closing) the edit drawer for a different one.
   useEffect(() => {
     setScheduleProposal(null);
+    setScheduleResult(null);
     setSeriesStopped(false);
   }, [editingId]);
+
+  // A minute-by-minute tick, so "Already scheduled" flips to "Missed block"
+  // when a block's end time passes while the drawer is open. Without it the
+  // label was only worked out when the block list changed.
+  const [nowTick, setNowTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setNowTick((n) => n + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const handleStopSeries = async (seriesId: string) => {
     setStoppingSeries(true);
@@ -236,9 +257,13 @@ export default function TasksPage() {
     }
   };
 
-  const handleFindSlot = async (taskId: string) => {
+  // moveEventId: when the task already has a block and the user chose to
+  // move it, the id of that event — the proposal then updates it in place
+  // instead of inserting a second block for the same task.
+  const handleFindSlot = async (taskId: string, moveEventId: string | null = null) => {
     setSchedulingTaskId(taskId);
     setScheduleProposal(null);
+    setScheduleResult(null);
     try {
       const res = await fetch("/api/schedule-task", {
         method: "POST",
@@ -247,12 +272,12 @@ export default function TasksPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setScheduleProposal({ taskId, candidate: null, reason: data.error ?? "Couldn't find a slot." });
+        setScheduleProposal({ taskId, candidate: null, reason: data.error ?? "Couldn't find a slot.", moveEventId });
         return;
       }
-      setScheduleProposal({ taskId, candidate: data.candidate, reason: data.reason });
+      setScheduleProposal({ taskId, candidate: data.candidate, reason: data.reason, moveEventId });
     } catch {
-      setScheduleProposal({ taskId, candidate: null, reason: "Couldn't reach the scheduler. Try again." });
+      setScheduleProposal({ taskId, candidate: null, reason: "Couldn't reach the scheduler. Try again.", moveEventId });
     } finally {
       setSchedulingTaskId(null);
     }
@@ -262,21 +287,62 @@ export default function TasksPage() {
     if (!scheduleProposal?.candidate) return;
     setScheduleAccepting(true);
     try {
-      await createEvent({
-        title: task.title,
-        date: scheduleProposal.candidate.date,
-        color: "#6C8EF5",
-        all_day: false,
-        project_id: task.project_id,
-        start_time: scheduleProposal.candidate.start_time,
-        end_time: scheduleProposal.candidate.end_time,
-        task_id: task.id,
-      });
+      const slotText = `${scheduleProposal.candidate.date} · ${scheduleProposal.candidate.start_time}–${scheduleProposal.candidate.end_time}`;
+      if (scheduleProposal.moveEventId) {
+        // Move the existing block — one block per task, no second event.
+        await updateEvent(scheduleProposal.moveEventId, {
+          date: scheduleProposal.candidate.date,
+          start_time: scheduleProposal.candidate.start_time,
+          end_time: scheduleProposal.candidate.end_time,
+        });
+        setScheduleResult({ taskId: task.id, text: `Moved your block to ${slotText}` });
+        // If that block was a missed one, the Dashboard's Missed blocks
+        // card should drop it right away rather than at its next refresh.
+        await mutate(ROLLOVER_KEY);
+      } else {
+        await createEvent({
+          title: task.title,
+          date: scheduleProposal.candidate.date,
+          color: "#6C8EF5",
+          all_day: false,
+          project_id: task.project_id,
+          start_time: scheduleProposal.candidate.start_time,
+          end_time: scheduleProposal.candidate.end_time,
+          task_id: task.id,
+        });
+        setScheduleResult({ taskId: task.id, text: `Added another block at ${slotText}` });
+      }
       setScheduleProposal(null);
     } finally {
       setScheduleAccepting(false);
     }
   };
+
+  // Plan My Day follow-up: blocks this task already has on the calendar.
+  // `events` arrives sorted by date/time (useCalendar), so the first block
+  // that hasn't ended yet is the upcoming one; if every block has already
+  // gone by, the most recent one is the (missed) block worth rescheduling.
+  // A finished task is ignored — its old blocks are history, not plans.
+  const editingBlocks = useMemo(() => {
+    if (!editingTask || editingTask.status === "done") return [];
+    return events.filter((e) => e.task_id === editingTask.id && !e.all_day && e.start_time && e.end_time);
+  }, [events, editingTask]);
+
+  const primaryBlock = useMemo(() => {
+    if (editingBlocks.length === 0) return null;
+    const today = todayISO();
+    const nowMins = nowMinutesOfDay();
+    const hasEnded = (e: (typeof editingBlocks)[number]) => {
+      if (e.date !== today) return e.date < today;
+      const [h, m] = (e.end_time as string).split(":").map(Number);
+      return h * 60 + m <= nowMins;
+    };
+    const upcoming = editingBlocks.find((e) => !hasEnded(e));
+    const block = upcoming ?? editingBlocks[editingBlocks.length - 1];
+    return { event: block, ended: !upcoming };
+    // nowTick re-runs this each minute so the "missed" state stays current.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingBlocks, nowTick]);
 
   return (
     <div
@@ -700,19 +766,67 @@ export default function TasksPage() {
               Set an estimated time above to enable scheduling.
             </div>
           ) : scheduleProposal?.taskId !== editingTask.id ? (
-            <button
-              onClick={() => handleFindSlot(editingTask.id)}
-              disabled={schedulingTaskId === editingTask.id}
-              style={{
-                width: "100%", marginBottom: 16, padding: "9px 0", borderRadius: 10, background: "rgb(var(--surface-2))",
-                border: "1px solid rgb(var(--border))", color: "rgb(var(--text))", fontSize: 12.5, fontWeight: 600,
-                cursor: schedulingTaskId === editingTask.id ? "default" : "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              }}
-            >
-              {schedulingTaskId === editingTask.id ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} color="rgb(var(--accent))" />}
-              {schedulingTaskId === editingTask.id ? "Finding a slot…" : "Find a time"}
-            </button>
+            <div style={{ marginBottom: 16 }}>
+              {scheduleResult?.taskId === editingTask.id && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 8, color: "rgb(var(--accent))" }}>
+                  <CheckCircle2 size={13} style={{ flexShrink: 0 }} />
+                  <span className="font-mono">{scheduleResult.text}</span>
+                </div>
+              )}
+              {/* Plan My Day follow-up: the task already has a block, so say so
+                  and offer to move it — adding a second block is still possible,
+                  but it's an explicit choice rather than the default. */}
+              {primaryBlock && (
+                <div
+                  style={{
+                    marginBottom: 8, padding: "9px 12px", borderRadius: 10, background: "rgb(var(--surface-2))",
+                    border: `1px solid ${primaryBlock.ended ? "rgb(var(--gold) / 0.4)" : "rgb(var(--border))"}`,
+                    display: "flex", alignItems: "flex-start", gap: 8,
+                  }}
+                >
+                  <CalendarClock size={14} color={primaryBlock.ended ? "rgb(var(--gold))" : "rgb(var(--accent))"} style={{ marginTop: 1, flexShrink: 0 }} />
+                  <div style={{ fontSize: 12 }}>
+                    <div style={{ color: "rgb(var(--text-muted))", marginBottom: 2 }}>
+                      {primaryBlock.ended ? "Missed block" : "Already scheduled"}
+                      {editingBlocks.length > 1 ? ` · +${editingBlocks.length - 1} more` : ""}
+                    </div>
+                    <div className="font-mono" style={{ fontWeight: 600 }}>
+                      {primaryBlock.event.date} · {(primaryBlock.event.start_time as string).slice(0, 5)}–{(primaryBlock.event.end_time as string).slice(0, 5)}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                {primaryBlock && (
+                  <button
+                    onClick={() => handleFindSlot(editingTask.id, primaryBlock.event.id)}
+                    disabled={schedulingTaskId === editingTask.id}
+                    style={{
+                      flex: 1, padding: "9px 0", borderRadius: 10, background: "rgb(var(--surface-2))",
+                      border: "1px solid rgb(var(--border))", color: "rgb(var(--text))", fontSize: 12.5, fontWeight: 600,
+                      cursor: schedulingTaskId === editingTask.id ? "default" : "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    }}
+                  >
+                    {schedulingTaskId === editingTask.id ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} color="rgb(var(--accent))" />}
+                    {schedulingTaskId === editingTask.id ? "Finding…" : primaryBlock.ended ? "Reschedule it" : "Move it"}
+                  </button>
+                )}
+                <button
+                  onClick={() => handleFindSlot(editingTask.id)}
+                  disabled={schedulingTaskId === editingTask.id}
+                  style={{
+                    flex: 1, padding: "9px 0", borderRadius: 10, background: "rgb(var(--surface-2))",
+                    border: "1px solid rgb(var(--border))", color: primaryBlock ? "rgb(var(--text-muted))" : "rgb(var(--text))",
+                    fontSize: 12.5, fontWeight: 600, cursor: schedulingTaskId === editingTask.id ? "default" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  }}
+                >
+                  {!primaryBlock && (schedulingTaskId === editingTask.id ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} color="rgb(var(--accent))" />)}
+                  {primaryBlock ? "Add another session" : schedulingTaskId === editingTask.id ? "Finding a slot…" : "Find a time"}
+                </button>
+              </div>
+            </div>
           ) : (
             <div
               style={{
@@ -730,6 +844,11 @@ export default function TasksPage() {
                     </div>
                   )}
                   <div style={{ color: "rgb(var(--text-muted))" }}>{scheduleProposal.reason}</div>
+                  {scheduleProposal.moveEventId && scheduleProposal.candidate && (
+                    <div style={{ color: "rgb(var(--text-muted))", marginTop: 4, fontSize: 11 }}>
+                      Moves your existing block — no second block is added.
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
@@ -742,7 +861,7 @@ export default function TasksPage() {
                       fontSize: 12, fontWeight: 600, border: "none", cursor: scheduleAccepting ? "default" : "pointer",
                     }}
                   >
-                    {scheduleAccepting ? "Adding…" : "Accept"}
+                    {scheduleAccepting ? (scheduleProposal.moveEventId ? "Moving…" : "Adding…") : scheduleProposal.moveEventId ? "Move block" : "Accept"}
                   </button>
                 )}
                 <button

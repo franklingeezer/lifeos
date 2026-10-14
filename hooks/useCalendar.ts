@@ -48,7 +48,21 @@ export function useCalendar() {
 
   const { data, error, isLoading, mutate } = useSWR<CalendarData>(CALENDAR_KEY, () => fetchCalendarData(supabase));
 
-  const events = data?.events ?? [];
+  // Always hand back events in a stable, readable order: by date, all-day
+  // events first within a day, then by start time. The query itself has no
+  // ORDER BY (and an optimistic create/update appends or edits in place),
+  // so without this a day's events appear in whatever order the database or
+  // the last edit happened to leave them — e.g. 8:40 AM above 8:00 AM.
+  const events = useMemo(() => {
+    const list = data?.events ?? [];
+    return [...list].sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      const at = a.all_day || !a.start_time ? "" : a.start_time.slice(0, 5);
+      const bt = b.all_day || !b.start_time ? "" : b.start_time.slice(0, 5);
+      if (at !== bt) return at < bt ? -1 : 1;
+      return a.title.localeCompare(b.title);
+    });
+  }, [data?.events]);
   const tasksDue = data?.tasksDue ?? [];
   const projectDeadlines = data?.projectDeadlines ?? [];
 

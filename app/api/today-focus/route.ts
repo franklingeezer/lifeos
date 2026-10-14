@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkAIRateLimit } from "@/lib/ai-rate-limit";
 import { todayISO } from "@/lib/date";
-import { buildLifeOSContext } from "@/lib/ai/context-engine";
+import { buildLifeOSContext, timeToMinutes } from "@/lib/ai/context-engine";
+import { buildFocusGrounding, sanitizeFocusPlan } from "@/lib/ai/focus-grounding";
 
 export const dynamic = "force-dynamic";
 
@@ -95,11 +96,44 @@ export async function GET(req: NextRequest) {
   const validProjectIds = new Set(candidateProjects.map((p) => p.id));
   const validHabitIds = new Set(candidateHabits.map((h) => h.id));
 
+  // Roadmap — Plan My Day, Part 3b. What's already on the calendar for
+  // tasks, and how today's estimated work compares to today's real free
+  // time. All of it is computed from data (Context Engine, 3a) — nothing
+  // here is the model's estimate, and the model is told so below.
+  const freeMinutesToday = calendar.today_free_blocks.reduce(
+    (sum, b) => sum + (timeToMinutes(b.end) - timeToMinutes(b.start)),
+    0
+  );
+  const schedule = {
+    // Blocks already on today's calendar for open tasks, earliest first.
+    scheduled_today: tasks.scheduled_today.map((b) => ({ task_id: b.task_id, title: b.title, start_time: b.start_time, end_time: b.end_time })),
+    // Blocks whose time passed with the task still open (last 7 days).
+    missed_blocks: tasks.missed_blocks.map((b) => ({ task_id: b.task_id, title: b.title, date: b.date, start_time: b.start_time, end_time: b.end_time })),
+    // Sum of the user's own estimates across overdue + due-today tasks. Tasks with no estimate add nothing — see due_now_unestimated_count.
+    due_now_estimated_minutes: tasks.due_now_estimated_minutes,
+    due_now_unestimated_count: tasks.due_now_unestimated_count,
+    free_minutes_today: freeMinutesToday,
+  };
+
+  // Everything the model was shown that carries a clock time or a
+  // duration — the allow-list the output is checked against afterwards.
+  const grounding = buildFocusGrounding({
+    freeBlocks: calendar.today_free_blocks,
+    blocks: [
+      ...tasks.scheduled_today,
+      ...tasks.missed_blocks,
+      ...candidateTasks.flatMap((t) => (t.next_block ? [t.next_block] : [])),
+    ],
+    taskEstimates: candidateTasks.flatMap((t) => (t.estimated_minutes ? [t.estimated_minutes] : [])),
+    extraDurations: [tasks.due_now_estimated_minutes, freeMinutesToday],
+  });
+
   const signals = {
     date: today,
     tasks: candidateTasks,
     projects: candidateProjects,
     habits: candidateHabits,
+    schedule,
     // Roadmap Phase 3, Part 5 — today_free_blocks/today_busy_minutes are
     // now real, computed availability (see Context Engine's buildCalendar),
     // not a placeholder. The model is told below it may cite these exact
@@ -122,7 +156,11 @@ export async function GET(req: NextRequest) {
 
 Rules:
 - Never invent a task, project, habit, or id that isn't in the JSON provided. Every focus item with type "task" must use a real id from the tasks array; type "project" a real id from projects; type "habit" a real id from habits. Use ref_id: null only for type "note" (a general observation with nothing to link to, e.g. a journal-mood signal).
-- calendar.today_free_blocks lists today's genuinely open windows (each an exact "HH:MM"-"HH:MM" pair, already computed — not your estimate). You may cite one of these exact windows verbatim (e.g. "free 14:00-16:00, good spot for this") when it's genuinely useful for ordering the plan. Never invent a clock time, window, or duration that isn't literally one of these entries or literally derivable by subtracting two of them — the data still has no per-task duration estimates, so don't claim a task will "take 2 hours." If today_free_blocks is empty, say the day is booked solid rather than inventing a gap.
+- calendar.today_free_blocks lists today's genuinely open windows (each an exact "HH:MM"-"HH:MM" pair, already computed — not your estimate). You may cite one of these exact windows verbatim (e.g. "free 14:00-16:00, good spot for this") when it's genuinely useful for ordering the plan. Never invent a clock time, window, or duration that isn't literally present in the JSON (a free block, a scheduled/missed block, or an estimated_minutes value) or literally derivable by subtracting two clock times in it. If today_free_blocks is empty, say the day is booked solid rather than inventing a gap.
+- Some tasks carry estimated_minutes — the user's OWN estimate. You may cite it as given (e.g. "est. 45 min"). A task with no estimated_minutes has no known duration: never guess one, and never say how long it will take.
+- A task with next_block already has a time block on the calendar (date, start_time, end_time). If next_block.date is today's date, say it's already blocked at that time instead of treating it as unplanned, and never suggest a free window for a task that's already blocked.
+- schedule.scheduled_today lists today's blocks for open tasks. schedule.missed_blocks lists blocks whose time already passed with the task still open — you may mention that a task's block was missed as a reason to prioritize it, in neutral wording ("block missed yesterday"), but never propose a new time for it; the app handles rescheduling separately. Mention missed blocks in at most one focus item.
+- schedule.due_now_estimated_minutes is the sum of the user's own estimates for overdue + due-today tasks, and schedule.free_minutes_today is today's real remaining free time. If the first exceeds the second you may say it won't all fit, citing both numbers as given. If schedule.due_now_unestimated_count is above 0, the total is incomplete — say "at least" rather than presenting it as the full amount. Never add up, scale, or round these numbers into a figure that isn't in the data.
 - Order matters: focus_items should be in the sequence you recommend tackling them, most important first. Typically: overdue tasks first, then today's calendar load context (citing a free block if one genuinely fits), then due-today/due-soon, then a project signal if one is genuinely urgent (approaching deadline or notably stale), then at most one habit signal if a streak is broken and nothing more pressing exists.
 - 3-6 focus_items total. Don't pad the list — if there are only 2 genuinely worth mentioning, return 2.
 - journal_signal, if present, is a mood trend only (recent average vs. previous average) — never claim to know *why* mood changed. If you reference it, phrase it as an observation, not a diagnosis: "energy's trended down this week" is fine, "you seem stressed about the deadline" is not, since nothing in the data says that.
@@ -197,7 +235,33 @@ Rules:
     .sort((a, b) => a.order - b.order)
     .slice(0, 6);
 
-  const plan = { headline: parsed.headline ?? "", focus_items: focusItems };
+  // Roadmap — Plan My Day, Part 3b. The prompt forbids invented times and
+  // durations, but a prompt is a request; this is the enforcement. Any
+  // clock time or duration in the model's own wording that isn't present
+  // in the data it was shown is removed (see lib/ai/focus-grounding.ts).
+  const bucketById = new Map(candidateTasks.map((t) => [t.id, t.bucket]));
+  const BUCKET_REASON: Record<string, string> = {
+    overdue: "Overdue",
+    due_today: "Due today",
+    due_soon: "Due soon",
+    no_due_date_high_priority: "High priority, no due date",
+  };
+  const signalById = new Map(candidateProjects.map((p) => [p.id, p.signal]));
+
+  const checked = sanitizeFocusPlan({ headline: parsed.headline ?? "", focus_items: focusItems }, grounding, (item) => {
+    if (item.type === "task") return BUCKET_REASON[bucketById.get(item.ref_id ?? "") ?? ""] ?? null;
+    if (item.type === "project") return signalById.get(item.ref_id ?? "") === "stale" ? "Hasn't been updated in a while" : "Deadline approaching";
+    if (item.type === "habit") return "Streak is broken";
+    return null; // a free-form "note" has no data-backed fallback — drop it
+  });
+
+  if (checked.headlineBlanked || checked.reasonsReplaced > 0 || checked.itemsDropped > 0) {
+    console.warn(
+      `today-focus: removed ungrounded specifics (headline blanked: ${checked.headlineBlanked}, reasons replaced: ${checked.reasonsReplaced}, items dropped: ${checked.itemsDropped})`
+    );
+  }
+
+  const plan = checked.plan;
 
   await supabase.from("ai_today_focus").upsert({ focus_date: today, content: plan }, { onConflict: "focus_date" });
 
