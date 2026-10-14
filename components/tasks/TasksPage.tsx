@@ -10,6 +10,8 @@ import { useTasks, type Priority, type Status, type Task } from "@/hooks/useTask
 import { useProjects } from "@/hooks/useProjects";
 import { useCalendar } from "@/hooks/useCalendar";
 import { useTaskSeries } from "@/hooks/useTaskSeries";
+import SeriesManager from "@/components/tasks/SeriesManager";
+import { seriesStatus } from "@/lib/series-schedule";
 import { ROLLOVER_KEY } from "@/hooks/useRollover";
 import { todayISO, nowMinutesOfDay } from "@/lib/date";
 import { useSWRConfig } from "swr";
@@ -53,7 +55,8 @@ export default function TasksPage() {
   const { projects } = useProjects();
   const { events, createEvent, updateEvent } = useCalendar();
   const { mutate } = useSWRConfig();
-  const { createSeries, stopSeries } = useTaskSeries();
+  const { series, createSeries, pauseSeries, resumeSeries } = useTaskSeries();
+  const [showSeriesManager, setShowSeriesManager] = useState(false);
   const projectNameById = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]
@@ -227,15 +230,15 @@ export default function TasksPage() {
   const [scheduleResult, setScheduleResult] = useState<{ taskId: string; text: string } | null>(null);
 
   // Roadmap — Recurring Tasks, Part 3.
-  const [stoppingSeries, setStoppingSeries] = useState(false);
-  const [seriesStopped, setSeriesStopped] = useState(false);
+  const [seriesBusy, setSeriesBusy] = useState(false);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
 
   // A stale proposal from a previously-open task should never carry over
   // when switching to (or closing) the edit drawer for a different one.
   useEffect(() => {
     setScheduleProposal(null);
     setScheduleResult(null);
-    setSeriesStopped(false);
+    setSeriesError(null);
   }, [editingId]);
 
   // A minute-by-minute tick, so "Already scheduled" flips to "Missed block"
@@ -247,13 +250,19 @@ export default function TasksPage() {
     return () => clearInterval(t);
   }, []);
 
-  const handleStopSeries = async (seriesId: string) => {
-    setStoppingSeries(true);
+  // Pause/resume act on the series itself (not just this task), and the
+  // drawer reads the series' real status from the same cache the Repeating
+  // manager uses — so pausing here and pausing there can never disagree.
+  const handleToggleSeries = async (seriesId: string, paused: boolean) => {
+    setSeriesBusy(true);
+    setSeriesError(null);
     try {
-      await stopSeries(seriesId);
-      setSeriesStopped(true);
+      if (paused) await resumeSeries(seriesId);
+      else await pauseSeries(seriesId);
+    } catch (e) {
+      setSeriesError(e instanceof Error ? e.message : "Couldn't update the series — try again.");
     } finally {
-      setStoppingSeries(false);
+      setSeriesBusy(false);
     }
   };
 
@@ -398,6 +407,14 @@ export default function TasksPage() {
                 <LayoutList size={14} /> List
               </button>
             </div>
+
+            <button
+              onClick={() => setShowSeriesManager(true)}
+              className="icon-btn"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, background: "transparent", color: "rgb(var(--text-muted))", fontSize: 13, fontWeight: 500, border: "1px solid rgb(var(--border))", cursor: "pointer" }}
+            >
+              <Repeat size={14} /> Repeating{series.filter((x) => x.active).length > 0 ? ` · ${series.filter((x) => x.active).length}` : ""}
+            </button>
 
             <button
               onClick={() => {
@@ -679,6 +696,8 @@ export default function TasksPage() {
         </div>
       )}
 
+      {showSeriesManager && <SeriesManager onClose={() => setShowSeriesManager(false)} />}
+
       {/* Edit drawer */}
       {editingTask && (
         <div
@@ -877,31 +896,51 @@ export default function TasksPage() {
             </div>
           )}
 
-          {editingTask.series_id && (
-            <div
-              style={{
-                marginBottom: 16, padding: "10px 12px", borderRadius: 10, background: "rgb(var(--surface-2))",
-                border: "1px solid rgb(var(--border))", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgb(var(--text-muted))" }}>
-                <Repeat size={13} />
-                {seriesStopped ? "Repeating stopped — this and past occurrences are unaffected" : "Part of a repeating series"}
-              </div>
-              {!seriesStopped && (
+          {editingTask.series_id && (() => {
+            const editingSeries = series.find((x) => x.id === editingTask.series_id);
+            const status = editingSeries ? seriesStatus(editingSeries) : "active";
+            const paused = status === "paused";
+            const ended = status === "ended";
+            return (
+              <div
+                style={{
+                  marginBottom: 16, padding: "10px 12px", borderRadius: 10, background: "rgb(var(--surface-2))",
+                  border: "1px solid rgb(var(--border))",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgb(var(--text-muted))" }}>
+                    <Repeat size={13} style={{ flexShrink: 0 }} />
+                    {ended
+                      ? "Repeating has ended — existing tasks are unaffected"
+                      : paused
+                        ? "Repeating paused — no new tasks until you resume"
+                        : "Part of a repeating series"}
+                  </div>
+                  {!ended && (
+                    <button
+                      onClick={() => handleToggleSeries(editingTask.series_id!, paused)}
+                      disabled={seriesBusy}
+                      style={{
+                        flexShrink: 0, padding: "5px 10px", borderRadius: 8, background: "transparent",
+                        color: paused ? "rgb(var(--accent))" : "rgb(var(--text-muted))",
+                        fontSize: 11.5, fontWeight: 600, border: "1px solid rgb(var(--border))", cursor: seriesBusy ? "default" : "pointer",
+                      }}
+                    >
+                      {seriesBusy ? "…" : paused ? "Resume" : "Pause"}
+                    </button>
+                  )}
+                </div>
+                {seriesError && <div style={{ fontSize: 11.5, color: "rgb(var(--danger))", marginTop: 8 }}>{seriesError}</div>}
                 <button
-                  onClick={() => handleStopSeries(editingTask.series_id!)}
-                  disabled={stoppingSeries}
-                  style={{
-                    flexShrink: 0, padding: "5px 10px", borderRadius: 8, background: "transparent", color: "rgb(var(--danger))",
-                    fontSize: 11.5, fontWeight: 600, border: "1px solid rgb(var(--border))", cursor: stoppingSeries ? "default" : "pointer",
-                  }}
+                  onClick={() => setShowSeriesManager(true)}
+                  style={{ marginTop: 8, padding: 0, background: "transparent", border: "none", color: "rgb(var(--accent))", fontSize: 11.5, fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
                 >
-                  {stoppingSeries ? "Stopping…" : "Stop repeating"}
+                  Manage repeating tasks
                 </button>
-              )}
-            </div>
-          )}
+              </div>
+            );
+          })()}
 
           <div style={{ marginTop: 18, marginBottom: 8, fontSize: 12, color: "rgb(var(--text-muted))" }}>Subtasks</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
