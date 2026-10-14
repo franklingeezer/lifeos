@@ -17,6 +17,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call /api/cron/notifications
+        env:
+          LIFEOS_URL: ${{ secrets.LIFEOS_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -sf -X GET "${{ secrets.LIFEOS_URL }}/api/cron/notifications" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          if [ -z "$LIFEOS_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::LIFEOS_URL or CRON_SECRET repository secret is missing"
+            exit 1
+          fi
+
+          # Check the status code explicitly instead of relying on curl -f:
+          # -f only fails on 4xx/5xx, so a redirect to /login (HTTP 307) used
+          # to count as success and this job stayed green while doing nothing.
+          status=$(curl -s -o response.txt -w "%{http_code}" -X GET "$LIFEOS_URL/api/cron/notifications" \
+            -H "Authorization: Bearer $CRON_SECRET")
+          echo "HTTP $status"
+          cat response.txt
+          echo
+
+          if [ "$status" != "200" ]; then
+            echo "::error::Cron endpoint returned HTTP $status (expected 200)"
+            exit 1
+          fi

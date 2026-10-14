@@ -9,7 +9,15 @@ import { NextResponse, type NextRequest } from "next/server";
 // locked out is by definition not logged in yet, and the callback route
 // is what turns their emailed reset link into a session in the first
 // place, so it can't require one to run.
-const PUBLIC_PATHS = ["/login", "/forgot-password", "/auth/callback"];
+//
+// /api/cron/ must stay public for the same reason from the other side: a
+// cron job (GitHub Actions, Vercel Cron) has no browser and no session, so
+// the session check would redirect every call to /login before the route
+// ever ran — recurring tasks and push notifications silently never fired.
+// The cron routes do their own authentication (a CRON_SECRET bearer token,
+// checked in the route handler), so skipping the session check here
+// doesn't leave them open.
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/auth/callback", "/api/cron/"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

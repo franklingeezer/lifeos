@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendPushToUser } from "@/lib/push/server";
@@ -11,9 +12,23 @@ export const dynamic = "force-dynamic";
 // job has no logged-in user — Vercel Cron sends this same header
 // automatically for routes defined in vercel.json, so no extra setup is
 // needed beyond having the env var set.
+//
+// This route is deliberately reachable without a session (see PUBLIC_PATHS
+// in lib/supabase/middleware.ts), so this check is the ONLY thing standing
+// between the public internet and a service-role client — it has to be
+// strict:
+//  - If CRON_SECRET isn't set, nothing is authorized. Comparing against
+//    `Bearer ${undefined}` would otherwise accept the literal header
+//    "Bearer undefined".
+//  - The comparison is constant-time, so response timing can't be used to
+//    guess the secret one character at a time.
 function isAuthorized(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  return auth === `Bearer ${process.env.CRON_SECRET}`;
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+
+  const provided = Buffer.from(req.headers.get("authorization") ?? "");
+  const expected = Buffer.from(`Bearer ${secret}`);
+  return provided.length === expected.length && timingSafeEqual(provided, expected);
 }
 
 type TaskSeriesRow = {
@@ -74,19 +89,47 @@ async function generateDueRecurringTasks(supabase: ReturnType<typeof createServi
     // querying a series that will never generate anything again.
     const stillActive = !series.end_date || newNextDueDate <= series.end_date;
 
-    await supabase.from("tasks").insert({
-      user_id: series.user_id,
-      title: series.title,
-      category: series.category,
-      priority: series.priority,
-      project_id: series.project_id,
-      estimated_minutes: series.estimated_minutes,
-      due_date: occurrenceDate,
-      series_id: series.id,
-    });
-    generated += 1;
+    // Idempotent: if this occurrence already exists (a previous run
+    // inserted it but failed before advancing the series, or the GitHub
+    // Actions run and the Vercel cron overlapped), don't create a second
+    // copy — just fall through and advance the series.
+    const { data: existing, error: existingError } = await supabase
+      .from("tasks")
+      .select("id")
+      .eq("series_id", series.id)
+      .eq("due_date", occurrenceDate)
+      .limit(1);
+    if (existingError) {
+      console.error(`cron: couldn't check existing occurrences for series ${series.id}`, existingError);
+      continue;
+    }
 
-    await supabase.from("task_series").update({ next_due_date: newNextDueDate, active: stillActive }).eq("id", series.id);
+    if (!existing || existing.length === 0) {
+      const { error: insertError } = await supabase.from("tasks").insert({
+        user_id: series.user_id,
+        title: series.title,
+        category: series.category,
+        priority: series.priority,
+        project_id: series.project_id,
+        estimated_minutes: series.estimated_minutes,
+        due_date: occurrenceDate,
+        series_id: series.id,
+      });
+      // Fail-safe: if the task wasn't created, do NOT advance the series.
+      // Leaving next_due_date where it is means the next run retries this
+      // same occurrence, instead of silently skipping it forever.
+      if (insertError) {
+        console.error(`cron: failed to create occurrence for series ${series.id}`, insertError);
+        continue;
+      }
+      generated += 1;
+    }
+
+    const { error: advanceError } = await supabase
+      .from("task_series")
+      .update({ next_due_date: newNextDueDate, active: stillActive })
+      .eq("id", series.id);
+    if (advanceError) console.error(`cron: failed to advance series ${series.id}`, advanceError);
   }
 
   return generated;
