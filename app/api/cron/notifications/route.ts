@@ -61,15 +61,30 @@ type TaskSeriesRow = {
 async function generateDueRecurringTasks(supabase: ReturnType<typeof createServiceClient>) {
   const today = todayISO();
 
-  const { data: dueSeries } = await supabase
+  const { data: dueSeries, error: dueError } = await supabase
     .from("task_series")
     .select("id, user_id, title, category, priority, project_id, estimated_minutes, frequency, interval_count, days_of_week, day_of_month, start_date, end_date, next_due_date")
     .eq("active", true)
     .lte("next_due_date", today);
 
-  let generated = 0;
+  // An error here used to be ignored, which made a failed query look
+  // exactly like "nothing is due" — 200 OK, tasksGenerated: 0. Report it.
+  if (dueError) {
+    console.error("cron: couldn't load due recurring series", dueError);
+    return { generated: 0, failed: 1, due: 0, firstError: `couldn't load due series: ${dueError.message}${dueError.code ? ` (${dueError.code})` : ""}` };
+  }
 
-  for (const series of (dueSeries ?? []) as TaskSeriesRow[]) {
+  let generated = 0;
+  let failed = 0;
+  // The first failure's message, returned to the caller so a failed run
+  // explains itself in the response (and in the GitHub Actions log)
+  // instead of only in server logs. Only ever sent to a caller that has
+  // already passed the CRON_SECRET check.
+  let firstError: string | null = null;
+
+  const due = (dueSeries ?? []) as TaskSeriesRow[];
+
+  for (const series of due) {
     const rule: RecurrenceRule = {
       frequency: series.frequency,
       interval_count: series.interval_count,
@@ -101,6 +116,8 @@ async function generateDueRecurringTasks(supabase: ReturnType<typeof createServi
       .limit(1);
     if (existingError) {
       console.error(`cron: couldn't check existing occurrences for series ${series.id}`, existingError);
+      failed += 1;
+      firstError ??= `couldn't check existing occurrences: ${existingError.message}`;
       continue;
     }
 
@@ -120,6 +137,8 @@ async function generateDueRecurringTasks(supabase: ReturnType<typeof createServi
       // same occurrence, instead of silently skipping it forever.
       if (insertError) {
         console.error(`cron: failed to create occurrence for series ${series.id}`, insertError);
+        failed += 1;
+        firstError ??= `couldn't create occurrence: ${insertError.message}`;
         continue;
       }
       generated += 1;
@@ -129,10 +148,14 @@ async function generateDueRecurringTasks(supabase: ReturnType<typeof createServi
       .from("task_series")
       .update({ next_due_date: newNextDueDate, active: stillActive })
       .eq("id", series.id);
-    if (advanceError) console.error(`cron: failed to advance series ${series.id}`, advanceError);
+    if (advanceError) {
+      console.error(`cron: failed to advance series ${series.id}`, advanceError);
+      failed += 1;
+      firstError ??= `couldn't advance series: ${advanceError.message}`;
+    }
   }
 
-  return generated;
+  return { generated, failed, due: due.length, firstError };
 }
 
 /**
@@ -232,8 +255,23 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServiceClient();
 
+  // Fail loudly if SUPABASE_SERVICE_ROLE_KEY isn't really a service-role
+  // key. A publishable/anon key in that slot doesn't error on queries — it
+  // just sees zero rows through Row Level Security, so the whole run
+  // "succeeds" having found no series, no subscriptions, and nothing to do.
+  // Listing auth users is something only a service-role key may do, so it
+  // doubles as a cheap, reliable check.
+  const { error: keyError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1 });
+  if (keyError) {
+    console.error("cron: service-role key check failed", keyError);
+    return NextResponse.json(
+      { ok: false, error: "Service-role key check failed — SUPABASE_SERVICE_ROLE_KEY must be the secret/service_role key, not the publishable/anon one." },
+      { status: 500 }
+    );
+  }
+
   // Independent of push subscriptions entirely — see generateDueRecurringTasks.
-  const tasksGenerated = await generateDueRecurringTasks(supabase);
+  const { generated: tasksGenerated, failed: tasksFailed, due: seriesDue, firstError } = await generateDueRecurringTasks(supabase);
 
   // Scope the notification/push work to users who actually have an active
   // push subscription — no subscriptions means nothing to deliver,
@@ -242,7 +280,7 @@ export async function GET(req: NextRequest) {
   const userIds = [...new Set((subs ?? []).map((s) => s.user_id))];
 
   if (userIds.length === 0) {
-    return NextResponse.json({ ok: true, users: 0, delivered: 0, tasksGenerated });
+    return NextResponse.json({ ok: tasksFailed === 0, users: 0, delivered: 0, seriesDue, tasksGenerated, tasksFailed, ...(firstError ? { detail: firstError } : {}) }, { status: tasksFailed === 0 ? 200 : 500 });
   }
 
   let totalDelivered = 0;
@@ -251,5 +289,8 @@ export async function GET(req: NextRequest) {
     totalDelivered += await deliverPendingPush(supabase, userId);
   }
 
-  return NextResponse.json({ ok: true, users: userIds.length, delivered: totalDelivered, tasksGenerated });
+  return NextResponse.json(
+    { ok: tasksFailed === 0, users: userIds.length, delivered: totalDelivered, seriesDue, tasksGenerated, tasksFailed, ...(firstError ? { detail: firstError } : {}) },
+    { status: tasksFailed === 0 ? 200 : 500 }
+  );
 }
